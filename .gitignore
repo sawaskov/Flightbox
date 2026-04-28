@@ -1,0 +1,15 @@
+# Secrets — never commit (any folder)
+**/.env
+.env
+
+# Optional env variants (keep templates un-ignored below)
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Dependencies
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db

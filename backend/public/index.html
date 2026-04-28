@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlightBox – Mailbox Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=8" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="logo">FlightBox</h1>
+      <p class="mailbox-label"><span class="mailbox-email" id="mailboxEmail">—</span></p>
+      <div class="header-actions">
+        <button type="button" class="btn btn-secondary" id="runSortBtn" aria-label="Run sorter">
+          <span class="btn-icon">⇄</span> Run sorter
+        </button>
+        <button type="button" class="btn btn-primary" id="refreshBtn" aria-label="Refresh">
+          <span class="btn-icon">↻</span> Refresh
+        </button>
+        <button type="button" class="btn btn-secondary" id="documentDetailsBtn" aria-label="Document details">
+          <span class="btn-icon">⊞</span> Document Details
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="mailboxView" class="layout">
+    <aside class="sidebar">
+      <h2 class="sidebar-title">Folders</h2>
+      <ul class="folder-list" id="folderList" aria-label="Mail folders"></ul>
+    </aside>
+
+    <main class="main">
+      <section class="stats" aria-live="polite">
+        <p class="stat"><strong id="folderNameEl">Inbox</strong> · <strong id="countEl">0</strong> emails</p>
+        <p class="stat stat-muted" id="lastUpdated">—</p>
+      </section>
+
+      <div class="alert alert-error hidden" id="errorAlert" role="alert">
+        <span id="errorText"></span>
+      </div>
+
+      <div class="alert alert-info hidden" id="reportAlert" role="status">
+        <div class="report-summary" id="reportSummary"></div>
+        <details class="report-details">
+          <summary>View full report</summary>
+          <pre class="report-json" id="reportJson"></pre>
+        </details>
+      </div>
+
+      <div class="loading hidden" id="loading">
+        <div class="spinner"></div>
+        <p>Loading…</p>
+      </div>
+
+      <ul class="email-list" id="emailList" aria-label="Messages"></ul>
+
+      <div class="empty hidden" id="emptyState">
+        <p>No messages in this folder.</p>
+      </div>
+    </main>
+  </div>
+
+  <section id="documentDetailsView" class="document-details-view hidden" aria-label="Document and query details">
+    <div class="document-details-inner">
+      <div class="document-details-tabs" role="tablist" aria-label="Report views">
+        <button type="button" class="doc-tab-btn is-active" role="tab" id="tabDocumentsBtn" aria-selected="true" data-tab="documents">Document details</button>
+        <button type="button" class="doc-tab-btn" role="tab" id="tabQueriesBtn" aria-selected="false" data-tab="queries">Query details</button>
+      </div>
+
+      <div class="document-folder-bar">
+        <div class="folder-bar-row">
+          <label class="folder-filter-label folder-filter-prominent" for="docFolderFilter">
+            <span class="folder-filter-heading">Mine emails from folder</span>
+            <select id="docFolderFilter" class="folder-filter-select" aria-label="Mail folder to scan for PDF invoices"></select>
+          </label>
+          <div class="folder-bar-actions">
+            <input type="file" id="queriesFileInput" class="hidden" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" aria-label="Excel file for queries" />
+            <button type="button" class="btn btn-secondary" id="importQueriesBtn">Import Queries</button>
+          </div>
+        </div>
+
+        <div class="document-details-filters folder-bar-filters hidden" id="documentDetailsFilters">
+          <p class="filters-heading">Filters</p>
+          <p class="filters-hint muted">Query no., Doc no., and Client apply to both tables. Open a list to search; use “All” to clear. Client: pick one or more names; “Select all shown” checks every name in the list after you type to narrow it.</p>
+          <div class="filters-grid">
+            <div class="filter-dropdown" data-filter-id="queryNr" data-value-source="queryLookup">
+              <span class="filter-dropdown-caption">Query no.</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search query numbers…" aria-label="Search query numbers" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown" data-filter-id="docNo" data-row-field="documentNo">
+              <span class="filter-dropdown-caption">Doc no.</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search document numbers…" aria-label="Search document numbers" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown filter-dropdown-multiselect" data-filter-id="client" data-row-field="clientName" data-multiselect="true">
+              <span class="filter-dropdown-caption">Client</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="dialog">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden">
+                <input type="search" class="filter-dropdown-search" placeholder="Type to filter client names…" aria-label="Filter client names" />
+                <button type="button" class="filter-client-select-all btn btn-secondary">Select all shown</button>
+                <ul class="filter-dropdown-options filter-client-checklist"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown" data-filter-id="supplier" data-row-field="supplierName">
+              <span class="filter-dropdown-caption">Supplier</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search values…" aria-label="Search supplier values" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown" data-filter-id="camp" data-row-field="campCampaignNo">
+              <span class="filter-dropdown-caption">CAP / CAMP</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search values…" aria-label="Search CAP or CAMP numbers" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown" data-filter-id="booking" data-row-field="bookingOrderNo">
+              <span class="filter-dropdown-caption">Booking order</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search values…" aria-label="Search booking orders" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown" data-filter-id="contract" data-row-field="contractNumber">
+              <span class="filter-dropdown-caption">Contract</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search values…" aria-label="Search contracts" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown" data-filter-id="po" data-row-field="purchaseOrderNumber">
+              <span class="filter-dropdown-caption">PO</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">All</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search values…" aria-label="Search purchase orders" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary filter-clear-btn" id="clearDocFiltersBtn">Clear all filters</button>
+        </div>
+      </div>
+
+      <div id="documentDetailsTabPanel" class="doc-tab-panel" role="tabpanel" aria-labelledby="tabDocumentsBtn">
+      <div class="document-details-toolbar">
+        <button type="button" class="btn btn-secondary" id="backToMailboxBtn">
+          ← Back to mailbox
+        </button>
+        <button type="button" class="btn btn-secondary" id="documentDetailsSyncBtn" title="Fetch mail and re-parse PDFs (can take a while)">
+          Sync from mailbox
+        </button>
+        <p class="document-details-meta muted" id="documentDetailsMeta"></p>
+      </div>
+
+      <div class="alert alert-error hidden" id="docDetailsError" role="alert"></div>
+
+      <div class="loading doc-details-loading hidden" id="documentDetailsLoading">
+        <div class="spinner"></div>
+        <p id="documentDetailsLoadingTitle">Scanning messages and parsing PDF attachments…</p>
+        <div class="progress-track" id="documentDetailsProgressTrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Scan progress">
+          <div class="progress-fill" id="documentDetailsProgressFill"></div>
+        </div>
+        <p class="progress-percent" id="documentDetailsProgressPercent">0%</p>
+        <p class="progress-detail muted" id="documentDetailsProgressDetail"></p>
+      </div>
+
+      <div class="table-panel">
+      <div class="table-scroll">
+        <table class="doc-table" id="documentDetailsTable">
+          <thead>
+            <tr>
+              <th title="From imported queries, matched on Document no.">Query no.</th>
+              <th title="Date Document Issued">Date issued</th>
+              <th>Document type</th>
+              <th title="Document number">Doc no.</th>
+              <th>Gross</th>
+              <th>Net</th>
+              <th>VAT</th>
+              <th>Total</th>
+              <th>Supplier</th>
+              <th>Client</th>
+              <th>Brand</th>
+              <th>Campaign</th>
+              <th title="CAP / CAMP of Campaign No">CAP / CAMP</th>
+              <th title="BO of Booking Order Number">Booking order</th>
+              <th title="Contract Number">Contract</th>
+              <th title="PO / Purchase Order Number">PO</th>
+              <th>Document</th>
+            </tr>
+          </thead>
+          <tbody id="documentDetailsTbody"></tbody>
+        </table>
+      </div>
+      </div>
+
+      <p class="document-details-empty hidden muted" id="documentDetailsEmpty">No PDF attachments found in this folder for the scanned messages.</p>
+      </div>
+
+      <div id="queryDetailsTabPanel" class="doc-tab-panel hidden" role="tabpanel" aria-labelledby="tabQueriesBtn">
+        <p class="query-details-intro muted" id="queryDetailsIntro">Import an Excel workbook (.xlsx or .xls). The first sheet must include <strong>Query Number</strong> and <strong>Document no</strong> columns to merge with document details.</p>
+        <div class="table-panel">
+          <div class="table-scroll">
+            <table class="query-table" id="queryDetailsTable">
+              <thead>
+                <tr id="queryDetailsTheadRow"></tr>
+              </thead>
+              <tbody id="queryDetailsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="document-details-empty hidden muted" id="queryDetailsEmpty">No query data imported yet. Use Import Queries next to the folder list.</p>
+      </div>
+    </div>
+  </section>
+
+  <script src="app.js?v=13"></script>
+</body>
+</html>

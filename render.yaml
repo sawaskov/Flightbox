@@ -1,0 +1,21 @@
+# Optional Render Blueprint: New → Blueprint → paste this file.
+# Add secret values in the Render dashboard after creation — not in this file.
+services:
+  - type: web
+    name: flightbox
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LISTEN_HOST
+        value: 0.0.0.0
+      - key: CLIENT_ID
+        sync: false
+      - key: CLIENT_SECRET
+        sync: false
+      - key: TENANT_ID
+        sync: false
+      - key: MAILBOX_EMAIL
+        sync: false
