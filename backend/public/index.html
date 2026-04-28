@@ -86,7 +86,7 @@
 
         <div class="document-details-filters folder-bar-filters hidden" id="documentDetailsFilters">
           <p class="filters-heading">Filters</p>
-          <p class="filters-hint muted">Query no., Doc no., and Client apply to both tables. Open a list to search; use “All” to clear. Client: pick one or more names; “Select all shown” checks every name in the list after you type to narrow it.</p>
+          <p class="filters-hint muted">Query no., Query status, Doc no., and Client apply to both tables. Open a list to search; use “All” to clear. Client: pick one or more names; “Select all shown” checks every name in the list after you type to narrow it. Query status defaults to Open.</p>
           <div class="filters-grid">
             <div class="filter-dropdown" data-filter-id="queryNr" data-value-source="queryLookup">
               <span class="filter-dropdown-caption">Query no.</span>
@@ -96,6 +96,17 @@
               </button>
               <div class="filter-dropdown-panel hidden" role="listbox">
                 <input type="search" class="filter-dropdown-search" placeholder="Search query numbers…" aria-label="Search query numbers" />
+                <ul class="filter-dropdown-options"></ul>
+              </div>
+            </div>
+            <div class="filter-dropdown" data-filter-id="queryStatus" data-value-source="queryStatusLookup">
+              <span class="filter-dropdown-caption">Query status</span>
+              <button type="button" class="filter-dropdown-trigger" aria-expanded="false" aria-haspopup="listbox">
+                <span class="filter-dropdown-selected">Open</span>
+                <span class="filter-dropdown-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="filter-dropdown-panel hidden" role="listbox">
+                <input type="search" class="filter-dropdown-search" placeholder="Search statuses…" aria-label="Search query statuses" />
                 <ul class="filter-dropdown-options"></ul>
               </div>
             </div>

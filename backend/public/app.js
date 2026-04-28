@@ -66,9 +66,11 @@
     fileName: "",
   };
   const queryNumberByDocNo = new Map();
+  const queryStatusByDocNo = new Map();
 
   let documentFilterSelections = {
     queryNr: "",
+    queryStatus: "Open",
     docNo: "",
     client: [],
     supplier: "",
@@ -506,15 +508,95 @@
     return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
   }
 
-  function rebuildQueryNumberLookup() {
+  /** Same rules as server `detectQueryMergeColumns` so merge keys work for legacy saved JSON. */
+  function headerTokensForMerge(s) {
+    return normalizeSearchFilter(String(s || "").replace(/[.:;,\s]+$/g, ""));
+  }
+
+  function detectQueryMergeColumnsFromColumns(headers) {
+    const list = (headers || []).map(function (h) {
+      return String(h || "").trim();
+    });
+    let queryNumberHeader = "";
+    let documentNoHeader = "";
+    for (let i = 0; i < list.length; i++) {
+      const raw = list[i];
+      if (!raw) continue;
+      const n = headerTokensForMerge(raw);
+      if (!documentNoHeader) {
+        if (/^document\s*(?:no\.?|#|number)\.?$/i.test(raw.trim())) {
+          documentNoHeader = raw;
+          continue;
+        }
+        if (
+          n.includes("document") &&
+          (n.includes("no") || n.includes("number") || n.includes("#")) &&
+          !n.includes("query")
+        ) {
+          documentNoHeader = raw;
+          continue;
+        }
+      }
+    }
+    for (let i = 0; i < list.length; i++) {
+      const raw = list[i];
+      if (!raw) continue;
+      const n = headerTokensForMerge(raw);
+      if (!queryNumberHeader) {
+        if (/^query\s*(?:no\.?|#|number)\.?$/i.test(raw.trim())) {
+          queryNumberHeader = raw;
+          continue;
+        }
+        if (
+          (n.includes("query") || n.includes("enquiry")) &&
+          (n.includes("no") || n.includes("number") || n.includes("#"))
+        ) {
+          queryNumberHeader = raw;
+          continue;
+        }
+      }
+    }
+    return { queryNumberHeader, documentNoHeader };
+  }
+
+  function ensureQueriesMergeHeaders() {
+    const cols = queriesImportState.columns;
+    if (!cols || !cols.length) return;
+    const d = detectQueryMergeColumnsFromColumns(cols);
+    if (!queriesImportState.queryNumberHeader && d.queryNumberHeader) {
+      queriesImportState.queryNumberHeader = d.queryNumberHeader;
+    }
+    if (!queriesImportState.documentNoHeader && d.documentNoHeader) {
+      queriesImportState.documentNoHeader = d.documentNoHeader;
+    }
+  }
+
+  /** Merge keys must be resolved before reading Query Number cells (dropdown vs filters). */
+  function getResolvedQueryNumberHeader() {
+    ensureQueriesMergeHeaders();
+    if (queriesImportState.queryNumberHeader) return queriesImportState.queryNumberHeader;
+    return detectQueryMergeColumnsFromColumns(queriesImportState.columns || []).queryNumberHeader || "";
+  }
+
+  function rebuildQueryImportLookups() {
     queryNumberByDocNo.clear();
-    const qh = queriesImportState.queryNumberHeader;
+    queryStatusByDocNo.clear();
     const dh = queriesImportState.documentNoHeader;
-    if (!qh || !dh || !queriesImportState.rows || !queriesImportState.rows.length) return;
+    if (!dh || !queriesImportState.rows || !queriesImportState.rows.length) return;
+    ensureQueriesMergeHeaders();
+    const qh = getResolvedQueryNumberHeader();
+    const sth = findQueriesQueryStatusColumnHeader();
     queriesImportState.rows.forEach(function (r) {
       const doc = normalizeSearchFilter(String(r[dh] || ""));
-      const qn = String(r[qh] || "").trim();
-      if (doc) queryNumberByDocNo.set(doc, qn);
+      if (!doc) return;
+      if (qh) {
+        const qn = String(r[qh] != null ? r[qh] : "").trim();
+        queryNumberByDocNo.set(doc, qn);
+      }
+      if (sth) {
+        const st = String(r[sth] != null ? r[sth] : "").trim();
+        queryStatusByDocNo.set(doc, st);
+      }
     });
   }
 
@@ -522,6 +604,40 @@
     const doc = normalizeSearchFilter(String(r.documentNo || ""));
     if (!doc) return "";
     return queryNumberByDocNo.get(doc) || "";
+  }
+
+  function lookupQueryStatusForDocumentRow(r) {
+    const doc = normalizeSearchFilter(String(r.documentNo || ""));
+    if (!doc) return "";
+    return queryStatusByDocNo.get(doc) || "";
+  }
+
+  function findQueriesQueryStatusColumnHeader() {
+    const cols = queriesImportState.columns || [];
+    for (let i = 0; i < cols.length; i++) {
+      const n = normalizeSearchFilter(cols[i]);
+      if (!n) continue;
+      if (n === "query status") return cols[i];
+      if (n.includes("query") && n.includes("status") && !n.includes("remarks")) return cols[i];
+    }
+    return "";
+  }
+
+  function getUniqueQueryStatusesForFilter() {
+    const sh = findQueriesQueryStatusColumnHeader();
+    if (!sh || !queriesImportState.rows || !queriesImportState.rows.length) return [];
+    const set = new Set();
+    queriesImportState.rows.forEach(function (r) {
+      const v = String(r[sh] != null ? r[sh] : "").trim();
+      if (v) set.add(v);
+    });
+    return Array.from(set).sort(function (a, b) {
+      return a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+    });
+  }
+
+  function hasQueryStatusDataForFilter() {
+    return !!findQueriesQueryStatusColumnHeader() || queryStatusByDocNo.size > 0;
   }
 
   function findQueriesClientColumnHeader() {
@@ -581,13 +697,16 @@
   function rowMatchesQueryImportFilters(qr) {
     const qh = queriesImportState.queryNumberHeader;
     const dh = queriesImportState.documentNoHeader;
-    if (!qh || !dh) return true;
 
     const selQ = documentFilterSelections.queryNr;
-    if (selQ && String(qr[qh] || "").trim() !== selQ) return false;
+    if (selQ) {
+      if (!qh) return true;
+      if (String(qr[qh] || "").trim() !== selQ) return false;
+    }
 
     const selDoc = documentFilterSelections.docNo;
     if (selDoc) {
+      if (!dh) return true;
       const a = normalizeSearchFilter(String(qr[dh] || ""));
       const b = normalizeSearchFilter(selDoc);
       if (a !== b) return false;
@@ -597,6 +716,15 @@
     if (clients && clients.length > 0) {
       const cn = String(effectiveClientForQueryRow(qr) || "").trim();
       if (!cn || clients.indexOf(cn) === -1) return false;
+    }
+
+    const selSt = documentFilterSelections.queryStatus;
+    if (selSt) {
+      const sth = findQueriesQueryStatusColumnHeader();
+      if (sth) {
+        const cell = String(qr[sth] != null ? qr[sth] : "").trim();
+        if (normalizeSearchFilter(cell) !== normalizeSearchFilter(selSt)) return false;
+      }
     }
 
     return true;
@@ -661,7 +789,8 @@
         importedAt: data.importedAt || null,
         fileName: data.fileName || "",
       };
-      rebuildQueryNumberLookup();
+      ensureQueriesMergeHeaders();
+      rebuildQueryImportLookups();
       if (queryDetailsIntro) {
         if (queriesImportState.importedAt || queriesImportState.fileName) {
           const bits = [];
@@ -704,15 +833,38 @@
     });
   }
 
-  function getUniqueQueryNumbersFromDocuments() {
+  /**
+   * Query numbers that appear on merged document rows, plus every distinct value from the
+   * imported queries sheet. The sheet alone can have 10k+ rows whose doc numbers are not in
+   * the mailbox PDF scan; without the sheet branch, search (e.g. "8342") finds no options.
+   */
+  function getUniqueQueryNumbersForFilter() {
     const set = new Set();
     documentDetailsAllRows.forEach(function (r) {
       const q = lookupQueryNumberForDocumentRow(r);
       if (q != null && String(q).trim() !== "") set.add(String(q).trim());
     });
+    const qh = getResolvedQueryNumberHeader();
+    const qrows = queriesImportState.rows || [];
+    if (qh && qrows.length) {
+      for (let i = 0; i < qrows.length; i++) {
+        const v = String(qrows[i][qh] != null ? qrows[i][qh] : "").trim();
+        if (v) set.add(v);
+      }
+    }
     return Array.from(set).sort(function (a, b) {
       return a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
     });
+  }
+
+  /** True if search text matches display string (including digit-only needle vs embedded numbers). */
+  function queryNumberOptionMatchesSearch(value, qNorm) {
+    if (!qNorm) return true;
+    if (normalizeSearchFilter(value).indexOf(qNorm) !== -1) return true;
+    const qDigits = String(qNorm).replace(/\D/g, "");
+    if (qDigits.length < 2) return false;
+    if (String(value).replace(/\D/g, "").indexOf(qDigits) === -1) return false;
+    return true;
   }
 
   function closeAllFilterDropdowns() {
@@ -762,6 +914,7 @@
   function clearDocumentFilterSelections() {
     documentFilterSelections = {
       queryNr: "",
+      queryStatus: "",
       docNo: "",
       client: [],
       supplier: "",
@@ -790,7 +943,14 @@
 
     let uniques;
     if (valueSource === "queryLookup") {
-      uniques = getUniqueQueryNumbersFromDocuments();
+      uniques = getUniqueQueryNumbersForFilter();
+    } else if (valueSource === "queryStatusLookup") {
+      uniques = getUniqueQueryStatusesForFilter();
+      const cs = documentFilterSelections[filterId];
+      if (cs && uniques.indexOf(cs) === -1) uniques = uniques.concat([cs]);
+      uniques.sort(function (a, b) {
+        return a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+      });
     } else if (field) {
       uniques = getUniqueColumnValues(field);
     } else {
@@ -799,6 +959,9 @@
 
     const q = normalizeSearchFilter(searchEl && searchEl.value);
     const filtered = uniques.filter(function (v) {
+      if (valueSource === "queryLookup") {
+        return queryNumberOptionMatchesSearch(v, q);
+      }
       if (!q) return true;
       return normalizeSearchFilter(v).indexOf(q) !== -1;
     });
@@ -999,6 +1162,12 @@
     const selQ = documentFilterSelections.queryNr;
     if (selQ) {
       if (String(lookupQueryNumberForDocumentRow(r) || "").trim() !== selQ) return false;
+    }
+
+    const selSt = documentFilterSelections.queryStatus;
+    if (selSt && hasQueryStatusDataForFilter()) {
+      const st = String(lookupQueryStatusForDocumentRow(r) || "").trim();
+      if (normalizeSearchFilter(st) !== normalizeSearchFilter(selSt)) return false;
     }
 
     const selDoc = documentFilterSelections.docNo;

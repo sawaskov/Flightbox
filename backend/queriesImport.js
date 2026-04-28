@@ -157,11 +157,19 @@ export async function readQueriesImport() {
   try {
     const raw = await fs.readFile(QUERIES_IMPORT_PATH, "utf8");
     const data = JSON.parse(raw);
+    const columns = Array.isArray(data.columns) ? data.columns : [];
+    let queryNumberHeader = data.queryNumberHeader || "";
+    let documentNoHeader = data.documentNoHeader || "";
+    if (columns.length && (!queryNumberHeader || !documentNoHeader)) {
+      const d = detectQueryMergeColumns(columns);
+      if (!queryNumberHeader) queryNumberHeader = d.queryNumberHeader || "";
+      if (!documentNoHeader) documentNoHeader = d.documentNoHeader || "";
+    }
     return {
-      columns: Array.isArray(data.columns) ? data.columns : [],
+      columns,
       rows: Array.isArray(data.rows) ? data.rows : [],
-      queryNumberHeader: data.queryNumberHeader || "",
-      documentNoHeader: data.documentNoHeader || "",
+      queryNumberHeader,
+      documentNoHeader,
       importedAt: data.importedAt || null,
       fileName: data.fileName || "",
     };
