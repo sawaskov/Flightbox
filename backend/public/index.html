@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body>
   <header class="header">
@@ -52,6 +52,15 @@
         </details>
       </div>
 
+      <div class="sort-run-progress hidden" id="sortRunProgress" aria-live="polite">
+        <p class="sort-run-progress-title muted">Running email sorter…</p>
+        <div class="progress-track" id="sortProgressTrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Sorter progress">
+          <div class="progress-fill" id="sortProgressFill"></div>
+        </div>
+        <p class="progress-percent" id="sortProgressPercent">0%</p>
+        <p class="progress-detail muted" id="sortProgressDetail"></p>
+      </div>
+
       <div class="loading hidden" id="loading">
         <div class="spinner"></div>
         <p>Loading…</p>
@@ -67,9 +76,24 @@
 
   <section id="documentDetailsView" class="document-details-view hidden" aria-label="Document and query details">
     <div class="document-details-inner">
-      <div class="document-details-tabs" role="tablist" aria-label="Report views">
-        <button type="button" class="doc-tab-btn is-active" role="tab" id="tabDocumentsBtn" aria-selected="true" data-tab="documents">Document details</button>
-        <button type="button" class="doc-tab-btn" role="tab" id="tabQueriesBtn" aria-selected="false" data-tab="queries">Query details</button>
+      <div class="document-details-tabs-row">
+        <div class="document-details-tabs" role="tablist" aria-label="Report views">
+          <button type="button" class="doc-tab-btn is-active" role="tab" id="tabDocumentsBtn" aria-selected="true" data-tab="documents">Document details</button>
+          <button type="button" class="doc-tab-btn" role="tab" id="tabQueriesBtn" aria-selected="false" data-tab="queries">Query details</button>
+        </div>
+        <div class="document-import-range" aria-label="Email received date range for import">
+          <label class="doc-import-date-label" for="docImportFrom">
+            <span class="doc-import-date-caption">Import from</span>
+            <input type="date" id="docImportFrom" class="doc-import-date-input" autocomplete="off" />
+          </label>
+          <label class="doc-import-date-label" for="docImportTo">
+            <span class="doc-import-date-caption">Import to</span>
+            <input type="date" id="docImportTo" class="doc-import-date-input" autocomplete="off" />
+          </label>
+          <button type="button" class="btn btn-secondary" id="documentDetailsSyncBtn" title="Fetch mail and re-parse PDFs in the selected received-date range (can take a while)">
+            Sync from mailbox
+          </button>
+        </div>
       </div>
 
       <div class="document-folder-bar">
@@ -86,7 +110,7 @@
 
         <div class="document-details-filters folder-bar-filters hidden" id="documentDetailsFilters">
           <p class="filters-heading">Filters</p>
-          <p class="filters-hint muted">Query no., Query status, Doc no., and Client apply to both tables. Open a list to search; use “All” to clear. Client: pick one or more names; “Select all shown” checks every name in the list after you type to narrow it. Query status defaults to Open.</p>
+          <p class="filters-hint muted">Query no., Query status, Doc no., and Client apply to both tables. Open a list to search; use “All” to clear. Client: pick one or more names; “Select all shown” checks every name in the list after you type to narrow it. Query status defaults to Open. Mailbox sync considers the newest messages per folder only (see scan depth in the status line).</p>
           <div class="filters-grid">
             <div class="filter-dropdown" data-filter-id="queryNr" data-value-source="queryLookup">
               <span class="filter-dropdown-caption">Query no.</span>
@@ -198,9 +222,6 @@
         <button type="button" class="btn btn-secondary" id="backToMailboxBtn">
           ← Back to mailbox
         </button>
-        <button type="button" class="btn btn-secondary" id="documentDetailsSyncBtn" title="Fetch mail and re-parse PDFs (can take a while)">
-          Sync from mailbox
-        </button>
         <p class="document-details-meta muted" id="documentDetailsMeta"></p>
       </div>
 
@@ -265,6 +286,6 @@
     </div>
   </section>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>

@@ -1287,6 +1287,776 @@ export function extractStatementInvoiceReferences(normalizedPlainText) {
   return [...refs];
 }
 
+function isGoogleCreditMemoDocument(flat) {
+  const f = String(flat || "");
+  if (!/google/i.test(f)) return false;
+  if (!/credit\s*memo/i.test(f)) return false;
+  return true;
+}
+
+/** Google Ireland DV360 invoices (not credit memos): invoice number + ZAR summary block. */
+function isGoogleInvoiceDocument(flat) {
+  const f = String(flat || "");
+  if (!/google/i.test(f)) return false;
+  if (/credit\s*memo/i.test(f)) return false;
+  if (!/\binvoice\b/i.test(f)) return false;
+  /** Google Ads monthly invoices also mention Google Ireland Limited — use Ads extractor instead. */
+  if (/Summary\s+of\s+costs\s+by\s+account\s+budget/i.test(f)) return false;
+  if (!/Google\s+Ireland|Display\s+and\s+Video\s+360/i.test(f)) return false;
+  return true;
+}
+
+/**
+ * Google Ads invoices (e.g. “Summary of costs by account budget”, MMS / account rows).
+ * Distinct from DV360: no “Display and Video 360” requirement.
+ */
+function isGoogleAdsInvoiceDocument(flat) {
+  const f = String(flat || "");
+  if (!/google/i.test(f)) return false;
+  if (/credit\s*memo/i.test(f)) return false;
+  if (!/\binvoice\b/i.test(f)) return false;
+  if (/Summary\s+of\s+costs\s+by\s+account\s+budget/i.test(f)) return true;
+  if (/\bGoogle\s+Ads\b/i.test(f) && /Total\s+amount\s+due\s+in\s+ZAR/i.test(f)) return true;
+  return false;
+}
+
+/** Last three positive ZAR amounts before the first “Summary for” (net, VAT 15%, total). */
+function extractGoogleAdsInvoiceZarTrio(flat) {
+  const summaryIdx = flat.search(/\bSummary\s+for\b/i);
+  if (summaryIdx < 0) return null;
+  const beforeSummary = flat.slice(0, summaryIdx);
+  const re = /\bZAR\s+([\d,]+\.\d{2})\b/g;
+  const parts = [];
+  let m;
+  while ((m = re.exec(beforeSummary)) !== null) {
+    parts.push(parseAmount(m[1].replace(/,/g, "")));
+  }
+  if (parts.length < 3) return null;
+  const net = parts[parts.length - 3];
+  const vat = parts[parts.length - 2];
+  const total = parts[parts.length - 1];
+  return {
+    grossAmount: net,
+    netAmount: net,
+    vatAmount: vat,
+    totalAmount: total,
+  };
+}
+
+/** Client / account name from “Account: Peugeot_ZA” or account-budget table row. */
+function extractGoogleAdsClientName(flat) {
+  const ac = [...flat.matchAll(/\bAccount:\s*([A-Za-z][A-Za-z0-9_]*)\b/gi)];
+  for (let i = 0; i < ac.length; i++) {
+    const name = String(ac[i][1] || "").trim();
+    if (name && !/^google$/i.test(name)) return name.slice(0, 200);
+  }
+  const row = flat.match(
+    /Summary\s+of\s+costs\s+by\s+account\s+budget\s+[\s\S]{0,2000}?\d{3}-\d{3}-\s*\d+\s+([A-Za-z][A-Za-z0-9_]*)/i,
+  );
+  if (row) return String(row[1] || "").trim().slice(0, 200);
+  return "";
+}
+
+/** Merge comma-separated PO lists from table + description passes (dedupe, sort). */
+function mergeGooglePurchaseOrderLists(...parts) {
+  const set = new Set();
+  for (let p = 0; p < parts.length; p++) {
+    const raw = parts[p];
+    if (!raw) continue;
+    String(raw)
+      .split(/[,]+/)
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .forEach((x) => set.add(x));
+  }
+  return [...set].sort().join(", ");
+}
+
+/**
+ * PO-style refs embedded in line items (Insertion order: …, Description, etc.).
+ * 9–11 digits, starting with 2025/2026 or current/prior calendar year.
+ * Uses (?<![0-9])…(?![0-9]) so tokens match inside strings like `DEC-2025120030_ZA25…` (\\b fails before `_`).
+ */
+function extractGoogleDescriptionPoNumbers(flat) {
+  const f = String(flat || "");
+  const set = new Set();
+  const add = (num) => {
+    const s = String(num || "").trim();
+    if (!/^\d{9,11}$/.test(s)) return;
+    set.add(s);
+  };
+  for (const m of f.matchAll(/(?<![0-9])(202[56]\d{5,7})(?![0-9])/g)) add(m[1]);
+  const y = new Date().getFullYear();
+  for (let i = 0; i < 2; i++) {
+    const prefix = String(y - i);
+    const re = new RegExp(`(?<![0-9])(${prefix}\\d{5,7})(?![0-9])`, "g");
+    for (const m of f.matchAll(re)) add(m[1]);
+  }
+  return [...set].sort();
+}
+
+/** PO-style refs: account-budget table (Ads). Same digit rules as description mining. */
+function extractGoogleAdsPurchaseOrderNumbers(flat) {
+  const start = flat.search(/Summary\s+of\s+costs\s+by\s+account\s+budget/i);
+  let slice = start >= 0 ? flat.slice(start) : flat;
+  const endMark = slice.search(/\s--\s*\d+\s+of\s+\d+\s--/);
+  if (endMark >= 0) slice = slice.slice(0, endMark);
+  const y = new Date().getFullYear();
+  const set = new Set();
+  const add = (num) => {
+    const s = String(num || "").trim();
+    if (!/^\d{9,11}$/.test(s)) return;
+    set.add(s);
+  };
+  for (let i = 0; i < 2; i++) {
+    const prefix = String(y - i);
+    const re = new RegExp(`(?<![0-9])(${prefix}\\d{5,7})(?![0-9])`, "g");
+    for (const m of slice.matchAll(re)) add(m[1]);
+  }
+  for (const m of slice.matchAll(/(?<![0-9])(202[56]\d{5,7})(?![0-9])/g)) add(m[1]);
+  return [...set].sort().join(", ");
+}
+
+/**
+ * Google Ads / “Summary of costs by account budget” layout (third common Google invoice shape).
+ */
+function extractGoogleAdsInvoiceFields(_text, flat, _lines) {
+  const documentType = "Invoice";
+  const supplierName = "Google";
+
+  const documentNo = matchFirst(flat, [
+    /\binvoice\s+number\s*[:\s]*(\d{5,20})\b/i,
+    /\bInvoice\s+number\s*[:\s]*(\d{5,20})/i,
+  ]);
+
+  let dateDocumentIssued = "";
+  const idate = flat.match(
+    /\bInvoice\s+date\s*[:\s]*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b/i,
+  );
+  if (idate) {
+    const p = idate[1]
+      .trim()
+      .match(/^(\d{1,2})\s+([A-Za-z]{3,})[a-z]*\s+(\d{4})$/i);
+    if (p) {
+      const d = parseInt(p[1], 10);
+      const mi = MONTHS.findIndex((x) =>
+        p[2].toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+      );
+      const y = parseInt(p[3], 10);
+      if (mi >= 0 && d >= 1 && d <= 31) {
+        const dt = new Date(y, mi, d);
+        if (!Number.isNaN(dt.getTime())) dateDocumentIssued = formatDocDate(dt);
+      }
+    }
+  }
+  if (!dateDocumentIssued) {
+    const m2 = flat.match(
+      /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/i,
+    );
+    if (m2) {
+      const d = parseInt(m2[1], 10);
+      const mi = MONTHS.findIndex((x) =>
+        m2[2].toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+      );
+      const y = parseInt(m2[3], 10);
+      if (mi >= 0) {
+        const dt = new Date(y, mi, d);
+        if (!Number.isNaN(dt.getTime())) dateDocumentIssued = formatDocDate(dt);
+      }
+    }
+  }
+
+  const trio = extractGoogleAdsInvoiceZarTrio(flat);
+  let grossAmount = "";
+  let netAmount = "";
+  let vatAmount = "";
+  let totalAmount = "";
+  if (trio) {
+    grossAmount = trio.grossAmount;
+    netAmount = trio.netAmount;
+    vatAmount = trio.vatAmount;
+    totalAmount = trio.totalAmount;
+  } else {
+    const fallback = extractGoogleInvoiceZarTrio(flat);
+    if (fallback) {
+      grossAmount = fallback.grossAmount;
+      netAmount = fallback.netAmount;
+      vatAmount = fallback.vatAmount;
+      totalAmount = fallback.totalAmount;
+    } else {
+      grossAmount =
+        scanGoogleZarStandard(flat, "Subtotal\\s+in\\s+ZAR") ||
+        scanGoogleZarStandard(flat, "Amount\\s+in\\s+ZAR");
+      netAmount = grossAmount;
+      vatAmount =
+        scanGoogleZarStandard(flat, "VAT\\s*\\(\\s*15%\\s*\\)") ||
+        scanGoogleZarStandard(flat, "VAT\\s*\\(\\s*15\\s*%\\s*\\)");
+      totalAmount = scanGoogleZarStandard(flat, "Total\\s+amount\\s+due\\s+in\\s+ZAR");
+    }
+  }
+
+  const clientName = extractGoogleAdsClientName(flat);
+  const purchaseOrderNumber = mergeGooglePurchaseOrderLists(
+    extractGoogleAdsPurchaseOrderNumbers(flat),
+    extractGoogleDescriptionPoNumbers(flat).join(", "),
+  );
+
+  return {
+    dateDocumentIssued,
+    documentType,
+    documentNo: documentNo || "",
+    grossAmount: grossAmount || "",
+    netAmount: netAmount || "",
+    vatAmount: vatAmount || "",
+    totalAmount: totalAmount || "",
+    supplierName,
+    clientName: clientName || "",
+    brandName: "",
+    campaignName: "",
+    campCampaignNo: "",
+    bookingOrderNo: "",
+    contractNumber: "",
+    purchaseOrderNumber: purchaseOrderNumber || "",
+    statementInvoiceRefs: [],
+  };
+}
+
+/**
+ * Brand: text after "Advertiser:" up to the next " ID:" (DV360 line items; PDF may split words).
+ * Uses the longest capture when multiple line items repeat the same advertiser.
+ */
+function extractGoogleAdvertiserBrand(flat) {
+  const matches = [...flat.matchAll(/Advertiser:\s*(.+?)\s+ID\s*:/gi)];
+  let best = "";
+  let bestNormLen = -1;
+  let bestSpaceCount = 999;
+  for (let i = 0; i < matches.length; i++) {
+    const raw = String(matches[i][1] || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const normLen = raw.replace(/\s/g, "").length;
+    const spaces = (raw.match(/\s/g) || []).length;
+    if (
+      normLen > bestNormLen ||
+      (normLen === bestNormLen && spaces < bestSpaceCount)
+    ) {
+      bestNormLen = normLen;
+      bestSpaceCount = spaces;
+      best = raw;
+    }
+  }
+  return best.slice(0, 500);
+}
+
+/** Full adjustment description can exceed {@link cleanLabelValue}'s 180-char cap. */
+function cleanGoogleCampaignDescription(s) {
+  if (!s) return "";
+  return String(s)
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*$/g, "")
+    .trim()
+    .slice(0, 4000);
+}
+
+function scanGoogleZarStandard(flat, labelPattern) {
+  const re = new RegExp(
+    labelPattern + String.raw`\s*[:.\s]*(-?\s*ZAR\s*)([\d,]+\.\d{2})`,
+    "gi",
+  );
+  let lastTzar = "";
+  let lastDigits = "";
+  let sm;
+  while ((sm = re.exec(flat)) !== null) {
+    lastTzar = sm[1];
+    lastDigits = sm[2];
+  }
+  if (!lastDigits) return "";
+  const neg = String(lastTzar || "").trim().startsWith("-");
+  return parseAmount((neg ? "-" : "") + lastDigits.replace(/,/g, ""));
+}
+
+/** Alternate: "Label … ZAR -0.04" (minus after ZAR) */
+function scanGoogleZarAlt(flat, labelPattern) {
+  const re = new RegExp(
+    labelPattern + String.raw`\s*[:.\s]*ZAR\s*(-?)\s*([\d,]+\.\d{2})`,
+    "gi",
+  );
+  let last = "";
+  let sm;
+  while ((sm = re.exec(flat)) !== null) {
+    const neg = sm[1] === "-" || String(sm[0]).includes("-");
+    last = parseAmount((neg ? "-" : "") + sm[2].replace(/,/g, ""));
+  }
+  return last;
+}
+
+/**
+ * Google PDFs use "-ZAR 0.04" (minus before currency token). Capture ZAR token so sign is not lost.
+ * @param {string} flat
+ * @param {string} labelPattern regex source without slashes (e.g. "Subtotal\\s+in\\s+ZAR")
+ */
+function extractGoogleCreditMemoZarLast(flat, labelPattern) {
+  let v = scanGoogleZarStandard(flat, labelPattern);
+  if (v) return v;
+  v = scanGoogleZarAlt(flat, labelPattern);
+  return v || "";
+}
+
+/**
+ * Google credit memo PDFs: often three consecutive `-ZAR` values, optional `Summary for`, then
+ * `Subtotal in ZAR` (see googlecreditmemo.pdf). Fee-heavy memos: many `-ZAR` lines before
+ * `Summary for` only — no `Subtotal in ZAR` on page 1 (see googlecreditmemo2.pdf).
+ */
+function extractGoogleCreditMemoZarTrio(flat) {
+  const classicRe =
+    /\s+-ZAR\s+([\d,]+\.\d{2})\s+-ZAR\s+([\d,]+\.\d{2})\s+-ZAR\s+([\d,]+\.\d{2})\s+(?:Summary\s+for\s+.+?\s+)?Subtotal\s+in\s+ZAR/gi;
+  let lastClassic = null;
+  let m;
+  while ((m = classicRe.exec(flat)) !== null) lastClassic = m;
+  if (lastClassic) {
+    const neg = (d) => parseAmount("-" + String(d).replace(/,/g, ""));
+    return {
+      grossAmount: neg(lastClassic[1]),
+      netAmount: neg(lastClassic[1]),
+      vatAmount: neg(lastClassic[2]),
+      totalAmount: neg(lastClassic[3]),
+    };
+  }
+
+  const summaryIdx = flat.search(/\bSummary\s+for\b/i);
+  if (summaryIdx < 0) return null;
+  const beforeSummary = flat.slice(0, summaryIdx);
+  const re = /-ZAR\s+([\d,]+\.\d{2})/g;
+  const amounts = [];
+  while ((m = re.exec(beforeSummary)) !== null) {
+    const raw = m[1].replace(/,/g, "");
+    const formatted = parseAmount("-" + raw);
+    if (formatted) amounts.push({ formatted, n: parseMoneyFloat(formatted) });
+  }
+  if (amounts.length < 3) return null;
+  const first = amounts[0].formatted;
+  const lastAmt = amounts[amounts.length - 1].formatted;
+  let vatAmount = "";
+  if (amounts.length === 3) {
+    vatAmount = amounts[1].formatted;
+  } else {
+    const diff = amounts[amounts.length - 1].n - amounts[0].n;
+    if (!Number.isNaN(diff)) vatAmount = parseAmount(String(diff));
+  }
+  return {
+    grossAmount: first,
+    netAmount: first,
+    vatAmount: vatAmount || "",
+    totalAmount: lastAmt,
+  };
+}
+
+function extractGoogleCampaignLine(flat) {
+  const idx = flat.indexOf("Canada DST Credit");
+  if (idx < 0) return "";
+  let slice = flat.slice(idx);
+  const foot = slice.search(/\s--\s*\d+\s+of\s+\d+\s--/);
+  if (foot >= 0) slice = slice.slice(0, foot);
+  slice = slice.replace(/\s+-[\d.]+\s*$/, "").trim();
+  return cleanGoogleCampaignDescription(slice);
+}
+
+/**
+ * Google invoices: ZAR reference block on page 1 ends at "Summary for".
+ * Simple layout: three amounts (subtotal, VAT, total). Fee-heavy layout: many rows
+ * (Amount in ZAR, VAT, DST, Turkey, VAT, Total) including optional "-ZAR 0.17".
+ */
+function extractGoogleInvoiceZarTrio(flat) {
+  const summaryIdx = flat.search(/\bSummary\s+for\b/i);
+  if (summaryIdx < 0) return null;
+  const beforeSummary = flat.slice(0, summaryIdx);
+  const re = /-ZAR\s+([\d,]+\.\d{2})|(?:^|\s)ZAR\s+([\d,]+\.\d{2})/g;
+  const amounts = [];
+  let m;
+  while ((m = re.exec(beforeSummary)) !== null) {
+    const raw = (m[1] || m[2] || "").replace(/,/g, "");
+    const neg = !!m[1];
+    const formatted = parseAmount((neg ? "-" : "") + raw);
+    if (formatted) amounts.push({ formatted, n: parseMoneyFloat(formatted) });
+  }
+  if (amounts.length < 3) return null;
+  const first = amounts[0].formatted;
+  const last = amounts[amounts.length - 1].formatted;
+  let vatAmount = "";
+  if (amounts.length === 3) {
+    vatAmount = amounts[1].formatted;
+  } else {
+    const diff =
+      amounts[amounts.length - 1].n - amounts[0].n;
+    if (!Number.isNaN(diff)) vatAmount = parseAmount(String(diff));
+  }
+  return {
+    grossAmount: first,
+    netAmount: first,
+    vatAmount: vatAmount || "",
+    totalAmount: last,
+  };
+}
+
+function extractGoogleInvoiceCampaign(flat) {
+  const needles = [
+    "Description Quantity UOM Amount(US$)",
+    "Description Quantity UOM Amount (US$)",
+  ];
+  let idx = -1;
+  for (let i = 0; i < needles.length; i++) {
+    idx = flat.indexOf(needles[i]);
+    if (idx >= 0) break;
+  }
+  if (idx < 0) idx = flat.indexOf("Amount(US$)");
+  if (idx < 0) return "";
+  let slice = flat.slice(idx);
+  const foot = slice.search(/\s--\s*\d+\s+of\s+\d+\s--/);
+  if (foot >= 0) slice = slice.slice(0, foot);
+  return cleanGoogleCampaignDescription(slice);
+}
+
+/**
+ * Google Ireland DV360 invoices (Display and Video 360). Uses ZAR reference trio and Advertiser-based brand.
+ */
+function extractGoogleInvoiceFields(_text, flat, _lines) {
+  const documentType = "Invoice";
+  const supplierName = "Google";
+
+  const documentNo = matchFirst(flat, [
+    /\binvoice\s+number\s*[:\s]*(\d{5,20})\b/i,
+    /\bInvoice\s+number\s*[:\s]*(\d{5,20})/i,
+  ]);
+
+  let dateDocumentIssued = "";
+  const idate = flat.match(
+    /\bInvoice\s+date\s*[:\s]*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b/i,
+  );
+  if (idate) {
+    const p = idate[1]
+      .trim()
+      .match(/^(\d{1,2})\s+([A-Za-z]{3,})[a-z]*\s+(\d{4})$/i);
+    if (p) {
+      const d = parseInt(p[1], 10);
+      const mi = MONTHS.findIndex((x) =>
+        p[2].toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+      );
+      const y = parseInt(p[3], 10);
+      if (mi >= 0 && d >= 1 && d <= 31) {
+        const dt = new Date(y, mi, d);
+        if (!Number.isNaN(dt.getTime())) dateDocumentIssued = formatDocDate(dt);
+      }
+    }
+  }
+  if (!dateDocumentIssued) {
+    const m2 = flat.match(
+      /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/i,
+    );
+    if (m2) {
+      const d = parseInt(m2[1], 10);
+      const mi = MONTHS.findIndex((x) =>
+        m2[2].toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+      );
+      const y = parseInt(m2[3], 10);
+      if (mi >= 0) {
+        const dt = new Date(y, mi, d);
+        if (!Number.isNaN(dt.getTime())) dateDocumentIssued = formatDocDate(dt);
+      }
+    }
+  }
+
+  const trio = extractGoogleInvoiceZarTrio(flat);
+  let grossAmount = "";
+  let netAmount = "";
+  let vatAmount = "";
+  let totalAmount = "";
+  if (trio) {
+    grossAmount = trio.grossAmount;
+    netAmount = trio.netAmount;
+    vatAmount = trio.vatAmount;
+    totalAmount = trio.totalAmount;
+  } else {
+    grossAmount =
+      scanGoogleZarStandard(flat, "Subtotal\\s+in\\s+ZAR") ||
+      scanGoogleZarStandard(flat, "Amount\\s+in\\s+ZAR");
+    netAmount = grossAmount;
+    vatAmount =
+      scanGoogleZarStandard(flat, "VAT\\s*\\(\\s*15%\\s*\\)") ||
+      scanGoogleZarStandard(flat, "VAT\\s*\\(\\s*15\\s*%\\s*\\)");
+    totalAmount = scanGoogleZarStandard(flat, "Total\\s+in\\s+ZAR");
+  }
+
+  let clientName = "";
+  const pm = flat.match(/Partner:\s*(.+?)\s+ID\s*:\s*\d+/i);
+  if (pm) clientName = cleanLabelValue(pm[1].trim());
+
+  const brandName = extractGoogleAdvertiserBrand(flat);
+
+  const campaignName = extractGoogleInvoiceCampaign(flat);
+
+  const purchaseOrderNumber = extractGoogleDescriptionPoNumbers(flat).join(", ");
+
+  return {
+    dateDocumentIssued,
+    documentType,
+    documentNo: documentNo || "",
+    grossAmount: grossAmount || "",
+    netAmount: netAmount || "",
+    vatAmount: vatAmount || "",
+    totalAmount: totalAmount || "",
+    supplierName,
+    clientName: clientName || "",
+    brandName: brandName || "",
+    campaignName: campaignName || "",
+    campCampaignNo: "",
+    bookingOrderNo: "",
+    contractNumber: "",
+    purchaseOrderNumber: purchaseOrderNumber || "",
+    statementInvoiceRefs: [],
+  };
+}
+
+/**
+ * Google Ireland credit memos (e.g. Display and Video 360, DV360 adjustments).
+ * Applies to PDFs whose extracted text contains both “Google” and “Credit Memo” (any mailbox folder).
+ *
+ * Mapping:
+ * - documentType → "Credit Memo"
+ * - documentNo → digits after “Credit memo number” (e.g. 5550554358)
+ * - grossAmount / netAmount → first of three `-ZAR` amounts before `Subtotal in ZAR` when PDF lists
+ *   amounts before labels; else label-based ZAR extraction.
+ * - vatAmount → second of trio, else VAT label line.
+ * - totalAmount → third of trio (credit total), else Total in ZAR line.
+ * - supplierName → "Google"
+ * - clientName → between “Partner: ” and the next “ ID” before an ID number (e.g. Nestle Southern Africa)
+ * - brandName → text after “Advertiser: ” up to “ ID:” (fallback: PUB_… for older credits without Advertiser)
+ * - campaignName → full adjustments description line(s) (Partner…Advertiser…PUB…)
+ *
+ * @param {string} _text
+ * @param {string} flat
+ * @param {string[]} _lines
+ */
+function extractGoogleCreditMemoFields(_text, flat, _lines) {
+  const documentType = "Credit Memo";
+  const supplierName = "Google";
+
+  const documentNo = matchFirst(flat, [
+    /credit\s*memo\s*number\s*[:\s]*(\d{5,20})\b/i,
+    /\bCredit\s*memo\s+number\s*[:\s]*(\d{5,20})/i,
+  ]);
+
+  let dateDocumentIssued = "";
+  const idate = flat.match(
+    /\bInvoice\s+date\s*[:\s]*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b/i,
+  );
+  if (idate) {
+    const p = idate[1]
+      .trim()
+      .match(/^(\d{1,2})\s+([A-Za-z]{3,})[a-z]*\s+(\d{4})$/i);
+    if (p) {
+      const d = parseInt(p[1], 10);
+      const mi = MONTHS.findIndex((x) =>
+        p[2].toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+      );
+      const y = parseInt(p[3], 10);
+      if (mi >= 0 && d >= 1 && d <= 31) {
+        const dt = new Date(y, mi, d);
+        if (!Number.isNaN(dt.getTime())) dateDocumentIssued = formatDocDate(dt);
+      }
+    }
+  }
+  if (!dateDocumentIssued) {
+    const m2 = flat.match(
+      /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/i,
+    );
+    if (m2) {
+      const d = parseInt(m2[1], 10);
+      const mi = MONTHS.findIndex((x) =>
+        m2[2].toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+      );
+      const y = parseInt(m2[3], 10);
+      if (mi >= 0) {
+        const dt = new Date(y, mi, d);
+        if (!Number.isNaN(dt.getTime())) dateDocumentIssued = formatDocDate(dt);
+      }
+    }
+  }
+
+  const trio = extractGoogleCreditMemoZarTrio(flat);
+  let grossAmount = "";
+  let netAmount = "";
+  let vatAmount = "";
+  let totalAmount = "";
+  if (trio) {
+    grossAmount = trio.grossAmount;
+    netAmount = trio.netAmount;
+    vatAmount = trio.vatAmount;
+    totalAmount = trio.totalAmount;
+  } else {
+    grossAmount =
+      extractGoogleCreditMemoZarLast(flat, "Subtotal\\s+in\\s+ZAR") ||
+      extractGoogleCreditMemoZarLast(flat, "Amount\\s+in\\s+ZAR");
+    netAmount = grossAmount;
+    vatAmount =
+      extractGoogleCreditMemoZarLast(flat, "VAT\\s*\\(\\s*15%\\s*\\)") ||
+      extractGoogleCreditMemoZarLast(flat, "VAT\\s*\\(\\s*15\\s*%\\s*\\)") ||
+      extractGoogleCreditMemoZarLast(flat, "VAT\\s*\\(15%\\)");
+    totalAmount = extractGoogleCreditMemoZarLast(flat, "Total\\s+in\\s+ZAR");
+  }
+
+  let campaignName = extractGoogleCampaignLine(flat);
+  if (!campaignName || campaignName.length < 15) {
+    const partnerSeg = flat.match(
+      /(.{10,3500}?Partner:\s*.+?PUB_[A-Za-z0-9_]+\s+ID\s*:\s*\d+)/is,
+    );
+    if (partnerSeg) {
+      campaignName = cleanGoogleCampaignDescription(
+        partnerSeg[1].replace(/\s+/g, " ").trim(),
+      );
+    }
+  }
+  if (!campaignName || campaignName.length < 20) {
+    const dst = flat.match(
+      /Canada DST Credit[^]{20,3500}?PUB_[A-Za-z0-9_]+\s+ID\s*:\s*\d+/i,
+    );
+    if (dst) campaignName = cleanGoogleCampaignDescription(dst[0]);
+  }
+
+  let clientName = "";
+  const pm = flat.match(/Partner:\s*(.+?)\s+ID\s*:\s*\d+/i);
+  if (pm) clientName = cleanLabelValue(pm[1].trim());
+
+  let brandName = extractGoogleAdvertiserBrand(flat);
+  if (!brandName) {
+    const pubs = [...flat.matchAll(/PUB_([A-Za-z0-9_]+)\s+ID\s*:\s*\d+/gi)];
+    if (pubs.length) {
+      brandName = cleanLabelValue(pubs[pubs.length - 1][1]);
+    }
+  }
+
+  const purchaseOrderNumber = extractGoogleDescriptionPoNumbers(flat).join(", ");
+
+  return {
+    dateDocumentIssued,
+    documentType,
+    documentNo: documentNo || "",
+    grossAmount: grossAmount || "",
+    netAmount: netAmount || "",
+    vatAmount: vatAmount || "",
+    totalAmount: totalAmount || "",
+    supplierName,
+    clientName: clientName || "",
+    brandName: brandName || "",
+    campaignName: campaignName || "",
+    campCampaignNo: "",
+    bookingOrderNo: "",
+    contractNumber: "",
+    purchaseOrderNumber: purchaseOrderNumber || "",
+    statementInvoiceRefs: [],
+  };
+}
+
+/**
+ * Snapshot for data/google-debugger.txt — compare flat text, regex hits, and extracted fields.
+ * @param {string} rawText PDF plain text from pdf-parse
+ */
+export function getGoogleCreditMemoDebugSnapshot(rawText) {
+  const text = normalizePdfPlainText(rawText);
+  const flat = text.replace(/\s+/g, " ");
+  const extracted = extractInvoiceFields(rawText);
+  const isMemo = isGoogleCreditMemoDocument(flat);
+  const isInv = isGoogleInvoiceDocument(flat);
+  const isAds = isGoogleAdsInvoiceDocument(flat);
+  const isGoogleExtract =
+    isMemo ||
+    isInv ||
+    isAds ||
+    (extracted.supplierName === "Google" &&
+      (extracted.documentType === "Credit Memo" ||
+        extracted.documentType === "Invoice"));
+  const pick = (src) => {
+    const a = [];
+    const rx = new RegExp(src, "gi");
+    let m;
+    let n = 0;
+    while ((m = rx.exec(flat)) !== null && n < 28) {
+      a.push(m[0]);
+      n++;
+    }
+    return a;
+  };
+  const base = {
+    timestamp: new Date().toISOString(),
+    isGoogleCreditMemo: isMemo,
+    isGoogleInvoice: isInv,
+    isGoogleAdsInvoice: isAds,
+    isGoogleExtract,
+    rawTextLength: String(rawText || "").length,
+    flatLength: flat.length,
+    rawTextSample: String(rawText || "").slice(0, 14000),
+    flatSample: flat.slice(0, 18000),
+    hints: {
+      hasGoogle: /google/i.test(flat),
+      hasCreditMemo: /credit\s*memo/i.test(flat),
+      hasInvoice: /\binvoice\b/i.test(flat),
+    },
+  };
+  if (!isGoogleExtract) {
+    return { ...base, extracted, patterns: null };
+  }
+  return {
+    ...base,
+    extracted,
+    patterns: {
+      subtotalSnippets: pick(String.raw`Subtotal\s+in\s+ZAR.{0,140}`),
+      vatSnippets: pick(String.raw`VAT\s*\([^)]{0,40}\).{0,120}`),
+      totalSnippets: pick(String.raw`Total\s+in\s+ZAR.{0,140}`),
+      zarLike: pick(String.raw`ZAR\s+[\d,]+\.\d{2}`).slice(0, 40),
+    },
+  };
+}
+
+/**
+ * @param {ReturnType<typeof getGoogleCreditMemoDebugSnapshot>} snapshot
+ * @param {Record<string, string>} [meta]
+ */
+export function formatGoogleDebuggerTxt(snapshot, meta = {}) {
+  const out = [];
+  out.push("=== Google DV360 (Credit Memo / Invoice) — extract debugger ===");
+  out.push("Written to: data/google-debugger.txt when a Google Ireland DV360 PDF is parsed.");
+  out.push("");
+  out.push("timestamp: " + snapshot.timestamp);
+  if (meta.messageId) out.push("messageId: " + meta.messageId);
+  if (meta.attachmentId) out.push("attachmentId: " + meta.attachmentId);
+  if (meta.sourceFileName) out.push("sourceFileName: " + meta.sourceFileName);
+  if (meta.folderId) out.push("folderId: " + meta.folderId);
+  out.push("isGoogleCreditMemo: " + snapshot.isGoogleCreditMemo);
+  out.push("isGoogleInvoice: " + snapshot.isGoogleInvoice);
+  out.push("isGoogleAdsInvoice: " + snapshot.isGoogleAdsInvoice);
+  out.push("isGoogleExtract: " + snapshot.isGoogleExtract);
+  out.push("");
+  if (!snapshot.isGoogleExtract) {
+    out.push("--- detector hints ---");
+    out.push(JSON.stringify(snapshot.hints, null, 2));
+    out.push("");
+    out.push("--- flat sample (6000 chars) ---");
+    out.push(String(snapshot.flatSample || "").slice(0, 6000));
+    return out.join("\n");
+  }
+  out.push("--- extracted fields ---");
+  out.push(JSON.stringify(snapshot.extracted, null, 2));
+  out.push("");
+  out.push("--- pattern snippets from flat text ---");
+  out.push(JSON.stringify(snapshot.patterns, null, 2));
+  out.push("");
+  out.push("--- flat text sample (12000 chars) ---");
+  out.push(String(snapshot.flatSample || "").slice(0, 12000));
+  out.push("");
+  out.push("--- raw PDF text sample (8000 chars) ---");
+  out.push(String(snapshot.rawTextSample || "").slice(0, 8000));
+  return out.join("\n");
+}
+
 /**
  * @param {string} rawText
  * @returns {Record<string, string>}
@@ -1295,6 +2065,18 @@ export function extractInvoiceFields(rawText) {
   const text = normalizePdfPlainText(rawText);
   const flat = text.replace(/\s+/g, " ");
   const lines = buildExtractionLines(text);
+
+  if (isGoogleCreditMemoDocument(flat)) {
+    return extractGoogleCreditMemoFields(text, flat, lines);
+  }
+
+  if (isGoogleAdsInvoiceDocument(flat)) {
+    return extractGoogleAdsInvoiceFields(text, flat, lines);
+  }
+
+  if (isGoogleInvoiceDocument(flat)) {
+    return extractGoogleInvoiceFields(text, flat, lines);
+  }
 
   let documentType = "";
   if (/statement\s*[-–]\s*activity/i.test(flat) || /\bSTATEMENT\b.*\bActivity\b/i.test(flat)) {

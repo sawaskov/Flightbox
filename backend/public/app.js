@@ -7,6 +7,12 @@
   const mailboxEmail = document.getElementById("mailboxEmail");
   const refreshBtn = document.getElementById("refreshBtn");
   const runSortBtn = document.getElementById("runSortBtn");
+  const sortRunProgress = document.getElementById("sortRunProgress");
+  const sortProgressFill = document.getElementById("sortProgressFill");
+  const sortProgressPercent = document.getElementById("sortProgressPercent");
+  const sortProgressDetail = document.getElementById("sortProgressDetail");
+  const sortProgressTrack = document.getElementById("sortProgressTrack");
+  let sortStreamSource = null;
   const loading = document.getElementById("loading");
   const errorAlert = document.getElementById("errorAlert");
   const errorText = document.getElementById("errorText");
@@ -31,6 +37,8 @@
   const documentDetailsFilters = document.getElementById("documentDetailsFilters");
   const clearDocFiltersBtn = document.getElementById("clearDocFiltersBtn");
   const documentDetailsSyncBtn = document.getElementById("documentDetailsSyncBtn");
+  const docImportFrom = document.getElementById("docImportFrom");
+  const docImportTo = document.getElementById("docImportTo");
   const tabDocumentsBtn = document.getElementById("tabDocumentsBtn");
   const tabQueriesBtn = document.getElementById("tabQueriesBtn");
   const documentDetailsTabPanel = document.getElementById("documentDetailsTabPanel");
@@ -55,7 +63,90 @@
     incremental: false,
     cachedRowsUsed: 0,
     newPdfAttachmentsParsed: 0,
+    messageScanLimit: null,
+    dateRangeActive: false,
+    receivedFrom: "",
+    receivedTo: "",
   };
+
+  const LS_DOC_IMPORT_FROM = "flightbox_docImportFrom";
+  const LS_DOC_IMPORT_TO = "flightbox_docImportTo";
+
+  function formatLocalYyyyMmDd(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  /**
+   * Manual date picks are stored in localStorage; if neither key exists, the UI uses an
+   * automatic range: today minus (max Ageing from Query details + 30 days) through today.
+   */
+  function ensureDocumentImportDateDefaults() {
+    if (!docImportFrom || !docImportTo) return;
+    if (localStorage.getItem(LS_DOC_IMPORT_FROM) || localStorage.getItem(LS_DOC_IMPORT_TO)) {
+      docImportFrom.value = localStorage.getItem(LS_DOC_IMPORT_FROM) || "";
+      docImportTo.value = localStorage.getItem(LS_DOC_IMPORT_TO) || "";
+      return;
+    }
+    const auto = computeAutoImportDateRange();
+    docImportFrom.value = auto.from;
+    docImportTo.value = auto.to;
+  }
+
+  function refreshAutoImportDatesIfNeeded() {
+    if (!docImportFrom || !docImportTo) return;
+    if (localStorage.getItem(LS_DOC_IMPORT_FROM) || localStorage.getItem(LS_DOC_IMPORT_TO)) {
+      return;
+    }
+    const auto = computeAutoImportDateRange();
+    docImportFrom.value = auto.from;
+    docImportTo.value = auto.to;
+  }
+
+  function persistDocumentImportDates() {
+    if (!docImportFrom || !docImportTo) return;
+    if (docImportFrom.value) {
+      localStorage.setItem(LS_DOC_IMPORT_FROM, docImportFrom.value);
+    } else {
+      localStorage.removeItem(LS_DOC_IMPORT_FROM);
+    }
+    if (docImportTo.value) {
+      localStorage.setItem(LS_DOC_IMPORT_TO, docImportTo.value);
+    } else {
+      localStorage.removeItem(LS_DOC_IMPORT_TO);
+    }
+  }
+
+  function getDocumentDetailsDateQuery() {
+    if (!docImportFrom || !docImportTo) return "";
+    let from = (docImportFrom.value || "").trim();
+    let to = (docImportTo.value || "").trim();
+    if (!from && !to) {
+      const auto = computeAutoImportDateRange();
+      from = auto.from;
+      to = auto.to;
+    }
+    let q = "";
+    if (from) q += "&receivedFrom=" + encodeURIComponent(from);
+    if (to) q += "&receivedTo=" + encodeURIComponent(to);
+    return q;
+  }
+
+  function validateDocumentImportDates() {
+    if (!docImportFrom || !docImportTo) return true;
+    const a = docImportFrom.value;
+    const b = docImportTo.value;
+    if (a && b && a > b) {
+      if (docDetailsError) {
+        docDetailsError.textContent = "Import from must be on or before Import to.";
+        docDetailsError.classList.remove("hidden");
+      }
+      return false;
+    }
+    return true;
+  }
 
   let queriesImportState = {
     columns: [],
@@ -424,34 +515,112 @@
     }
   }
 
+  function setSortProgressUI(percent, detailText) {
+    const p = Math.min(100, Math.max(0, Number(percent) || 0));
+    if (sortProgressFill) sortProgressFill.style.width = p + "%";
+    if (sortProgressPercent) sortProgressPercent.textContent = Math.round(p) + "%";
+    if (sortProgressDetail) sortProgressDetail.textContent = detailText || "";
+    if (sortProgressTrack) sortProgressTrack.setAttribute("aria-valuenow", String(Math.round(p)));
+  }
+
+  function stopSortStream() {
+    if (sortStreamSource) {
+      sortStreamSource.onerror = null;
+      sortStreamSource.close();
+      sortStreamSource = null;
+    }
+  }
+
+  function finishSortRun() {
+    stopSortStream();
+    if (sortRunProgress) sortRunProgress.classList.add("hidden");
+    runSortBtn.disabled = false;
+  }
+
   async function runSorter() {
     clearError();
     hideReport();
     runSortBtn.disabled = true;
-    showLoading(true);
-    try {
-      const res = await fetch("/api/mail/run-sort", { method: "POST" });
-      const data = await res.json().catch(function () { return {}; });
-      if (!res.ok) throw new Error(data.message || data.error || "Run sorter failed");
+    stopSortStream();
+    if (sortRunProgress) sortRunProgress.classList.remove("hidden");
+    setSortProgressUI(0, "Starting…");
 
-      const r = data.report || {};
-      const summary =
-        "<p><strong>" + (data.message || "Done.") + "</strong></p>" +
-        "<ul>" +
-        "<li>Allocated to folders: " + (r.allocated ? r.allocated.length : 0) + "</li>" +
-        "<li>Corrected (mis-filed): " + (r.corrected ? r.corrected.length : 0) + "</li>" +
-        "<li>Left in Inbox (no matching domain): " + (r.leftInInbox ?? 0) + "</li>" +
-        (r.errors && r.errors.length ? "<li>Errors: " + r.errors.length + "</li>" : "") +
-        "</ul>";
-      showReport(summary, data.report);
-      await loadFolders();
-      loadFolderMessages(selectedFolderId);
-    } catch (err) {
-      showError(err.message);
-    } finally {
-      showLoading(false);
-      runSortBtn.disabled = false;
+    if (typeof EventSource === "undefined") {
+      try {
+        const res = await fetch("/api/mail/run-sort", { method: "POST" });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.message || data.error || "Run sorter failed");
+        const r = data.report || {};
+        const summary =
+          "<p><strong>" + (data.message || "Done.") + "</strong></p>" +
+          "<ul>" +
+          "<li>Allocated to folders: " + (r.allocated ? r.allocated.length : 0) + "</li>" +
+          "<li>Corrected (mis-filed): " + (r.corrected ? r.corrected.length : 0) + "</li>" +
+          "<li>Left in Inbox (no matching domain): " + (r.leftInInbox ?? 0) + "</li>" +
+          (r.errors && r.errors.length ? "<li>Errors: " + r.errors.length + "</li>" : "") +
+          "</ul>";
+        showReport(summary, data.report);
+        await loadFolders();
+        loadFolderMessages(selectedFolderId);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        finishSortRun();
+      }
+      return;
     }
+
+    let completedOk = false;
+    sortStreamSource = new EventSource("/api/mail/run-sort/stream");
+
+    sortStreamSource.addEventListener("progress", function (e) {
+      try {
+        const d = JSON.parse(e.data);
+        setSortProgressUI(d.percent, d.label || d.phase || "");
+      } catch (_) {}
+    });
+
+    sortStreamSource.addEventListener("complete", function (e) {
+      completedOk = true;
+      sortStreamSource.onerror = null;
+      sortStreamSource.close();
+      sortStreamSource = null;
+      if (sortRunProgress) sortRunProgress.classList.add("hidden");
+      runSortBtn.disabled = false;
+      try {
+        const data = JSON.parse(e.data);
+        const r = data.report || {};
+        const summary =
+          "<p><strong>" + (data.message || "Done.") + "</strong></p>" +
+          "<ul>" +
+          "<li>Allocated to folders: " + (r.allocated ? r.allocated.length : 0) + "</li>" +
+          "<li>Corrected (mis-filed): " + (r.corrected ? r.corrected.length : 0) + "</li>" +
+          "<li>Left in Inbox (no matching domain): " + (r.leftInInbox ?? 0) + "</li>" +
+          (r.errors && r.errors.length ? "<li>Errors: " + r.errors.length + "</li>" : "") +
+          "</ul>";
+        showReport(summary, data.report);
+      } catch (err) {
+        showError(err.message || "Could not read sorter results");
+      }
+      void loadFolders();
+      loadFolderMessages(selectedFolderId);
+    });
+
+    sortStreamSource.addEventListener("fatal", function (e) {
+      finishSortRun();
+      try {
+        const d = JSON.parse(e.data);
+        showError(d.message || "Run sorter failed");
+      } catch (_) {
+        showError("Run sorter failed");
+      }
+    });
+
+    sortStreamSource.onerror = function () {
+      if (!sortStreamSource || completedOk) return;
+      finishSortRun();
+      showError("Sorter connection lost. Try again or check the server.");
+    };
   }
 
   function populateDocFolderFilter() {
@@ -500,8 +669,13 @@
       docDetailsError.classList.add("hidden");
       docDetailsError.textContent = "";
     }
-    void loadQueriesFromServer(false);
-    loadDocumentDetails();
+    void (async function () {
+      try {
+        await loadQueriesFromServer(false);
+      } catch (_) {}
+      ensureDocumentImportDateDefaults();
+      loadDocumentDetails();
+    })();
   }
 
   function normalizeSearchFilter(s) {
@@ -651,6 +825,49 @@
     return "";
   }
 
+  function findQueriesAgeingColumnHeader() {
+    const cols = queriesImportState.columns || [];
+    for (let i = 0; i < cols.length; i++) {
+      const raw = String(cols[i] || "").trim();
+      if (!raw) continue;
+      if (/^ageing$/i.test(raw)) return cols[i];
+      if (normalizeSearchFilter(raw) === "ageing") return cols[i];
+    }
+    return "";
+  }
+
+  /** Largest numeric Ageing value from the imported query sheet (days); 0 if none. */
+  function computeMaxAgeingDaysFromQueries() {
+    const ch = findQueriesAgeingColumnHeader();
+    if (!ch || !queriesImportState.rows || !queriesImportState.rows.length) return 0;
+    let max = 0;
+    queriesImportState.rows.forEach(function (r) {
+      const raw = r[ch];
+      const n = parseFloat(String(raw != null ? raw : "").replace(/,/g, "").trim());
+      if (!Number.isFinite(n) || n < 0) return;
+      if (n > max) max = n;
+    });
+    return Math.floor(max);
+  }
+
+  /** Import from = today − max Ageing − 7 days; Import to = today − 40 days (local dates). Order normalized if needed. */
+  function computeAutoImportDateRange() {
+    const maxAge = computeMaxAgeingDaysFromQueries();
+    const today = new Date();
+    const fromD = new Date(today.getTime());
+    fromD.setDate(fromD.getDate() - maxAge - 7);
+    const toD = new Date(today.getTime());
+    toD.setDate(toD.getDate() - 40);
+    let from = formatLocalYyyyMmDd(fromD);
+    let to = formatLocalYyyyMmDd(toD);
+    if (from > to) {
+      const x = from;
+      from = to;
+      to = x;
+    }
+    return { from, to };
+  }
+
   function documentNoToClientLookupMap() {
     const m = new Map();
     documentDetailsAllRows.forEach(function (r) {
@@ -765,6 +982,7 @@
   }
 
   function switchDocumentDetailsTab(which) {
+    closeAllFilterDropdowns();
     const isDocs = which !== "queries";
     if (tabDocumentsBtn) {
       tabDocumentsBtn.classList.toggle("is-active", isDocs);
@@ -776,6 +994,7 @@
     }
     if (documentDetailsTabPanel) documentDetailsTabPanel.classList.toggle("hidden", !isDocs);
     if (queryDetailsTabPanel) queryDetailsTabPanel.classList.toggle("hidden", isDocs);
+    applyDocumentFilters();
   }
 
   async function loadQueriesFromServer(showErr) {
@@ -813,6 +1032,7 @@
         }
       }
       updateDocumentFiltersVisibility();
+      refreshAutoImportDatesIfNeeded();
       applyDocumentFilters();
     } catch (err) {
       if (showErr && docDetailsError) {
@@ -914,7 +1134,7 @@
   function clearDocumentFilterSelections() {
     documentFilterSelections = {
       queryNr: "",
-      queryStatus: "",
+      queryStatus: "Open",
       docNo: "",
       client: [],
       supplier: "",
@@ -927,7 +1147,9 @@
       if (drop.getAttribute("data-multiselect") === "true") {
         updateClientFilterTrigger(drop);
       } else {
-        updateDropdownTriggerLabel(drop, "");
+        const fid = drop.getAttribute("data-filter-id");
+        const val = fid === "queryStatus" ? "Open" : "";
+        updateDropdownTriggerLabel(drop, val);
       }
     });
   }
@@ -1198,6 +1420,53 @@
     return true;
   }
 
+  /** Matches backend `formatDocDate`: DD-Mon-YY (month English abbreviation). */
+  const DOC_INVOICE_MONTHS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  function parseDocumentInvoiceDateMs(raw) {
+    const s = raw != null ? String(raw).trim() : "";
+    if (!s) return NaN;
+    const m = s.match(/^(\d{1,2})-([A-Za-z]{3})[a-z]*-(\d{2}|\d{4})$/i);
+    if (!m) return NaN;
+    const day = parseInt(m[1], 10);
+    const monStr = m[2].slice(0, 3);
+    const mi = DOC_INVOICE_MONTHS.findIndex(function (abbr) {
+      return monStr.toLowerCase() === abbr.toLowerCase();
+    });
+    let y = parseInt(m[3], 10);
+    if (m[3].length === 2) y += y < 70 ? 2000 : 1900;
+    if (mi < 0 || day < 1 || day > 31) return NaN;
+    const dt = new Date(y, mi, day);
+    return Number.isNaN(dt.getTime()) ? NaN : dt.getTime();
+  }
+
+  function compareDocumentRowsByInvoiceDateAsc(a, b) {
+    const ta = parseDocumentInvoiceDateMs(a.dateDocumentIssued);
+    const tb = parseDocumentInvoiceDateMs(b.dateDocumentIssued);
+    const aBad = Number.isNaN(ta);
+    const bBad = Number.isNaN(tb);
+    if (aBad && bBad) return 0;
+    if (aBad) return 1;
+    if (bBad) return -1;
+    if (ta !== tb) return ta - tb;
+    return String(a.documentNo || "").localeCompare(String(b.documentNo || ""), undefined, {
+      numeric: true,
+    });
+  }
+
   function updateDocumentDetailsMetaDisplay(shownCount) {
     if (!documentDetailsMeta) return;
     const m = documentDetailsScanMeta;
@@ -1217,6 +1486,15 @@
       " messages with attachments · " +
       m.totalRows +
       " row(s)";
+    if (m.dateRangeActive && (m.receivedFrom || m.receivedTo)) {
+      text +=
+        " · Received " +
+        (m.receivedFrom || "…") +
+        " – " +
+        (m.receivedTo || "…");
+    } else if (m.messageScanLimit) {
+      text += " · Scan depth: " + m.messageScanLimit + " newest msgs/folder";
+    }
     if (m.totalRows > 0 && shownCount !== m.totalRows) {
       text += " · Showing " + shownCount + " of " + m.totalRows + " (filtered)";
     }
@@ -1227,8 +1505,14 @@
     if (!documentDetailsEmpty) return;
     const total = documentDetailsAllRows.length;
     if (total === 0) {
-      documentDetailsEmpty.textContent =
-        "No PDF attachments found in this folder for the scanned messages.";
+      const m = documentDetailsScanMeta;
+      if (m.dateRangeActive && (m.receivedFrom || m.receivedTo)) {
+        documentDetailsEmpty.textContent =
+          "No PDF attachments found for messages received in the selected date range.";
+      } else {
+        documentDetailsEmpty.textContent =
+          "No PDF attachments found in this folder for the scanned messages.";
+      }
       documentDetailsEmpty.classList.remove("hidden");
       return;
     }
@@ -1242,6 +1526,7 @@
 
   function applyDocumentFilters() {
     const filtered = documentDetailsAllRows.filter(rowMatchesDocumentFilters);
+    filtered.sort(compareDocumentRowsByInvoiceDateAsc);
     renderDocumentRows(filtered);
     updateDocumentDetailsMetaDisplay(filtered.length);
     updateDocumentEmptyState(filtered.length);
@@ -1264,6 +1549,10 @@
       incremental: !!data.incremental,
       cachedRowsUsed: data.cachedRowsUsed ?? 0,
       newPdfAttachmentsParsed: data.newPdfAttachmentsParsed ?? data.pdfAttachmentsParsed ?? 0,
+      messageScanLimit: data.messageScanLimit != null ? data.messageScanLimit : null,
+      dateRangeActive: !!data.dateRangeActive,
+      receivedFrom: data.receivedFrom || "",
+      receivedTo: data.receivedTo || "",
     };
     updateDocumentFiltersVisibility();
     applyDocumentFilters();
@@ -1349,7 +1638,9 @@
   async function tryPaintCachedDocumentRows(folderId) {
     try {
       const snap = await fetchJsonOrThrow(
-        "/api/mail/document-details/cached?folderId=" + encodeURIComponent(folderId),
+        "/api/mail/document-details/cached?folderId=" +
+          encodeURIComponent(folderId) +
+          getDocumentDetailsDateQuery(),
       );
       if (!snap.rows || snap.rows.length === 0) return false;
       setDocumentDetailsFromApi({
@@ -1359,6 +1650,9 @@
         incremental: true,
         cachedRowsUsed: snap.rows.length,
         newPdfAttachmentsParsed: 0,
+        dateRangeActive: !!(snap.receivedFrom || snap.receivedTo),
+        receivedFrom: snap.receivedFrom || "",
+        receivedTo: snap.receivedTo || "",
       });
       setDocumentProgressUI(100, "");
       return true;
@@ -1387,8 +1681,11 @@
       incremental: false,
       cachedRowsUsed: 0,
       newPdfAttachmentsParsed: 0,
+      messageScanLimit: null,
+      dateRangeActive: false,
+      receivedFrom: "",
+      receivedTo: "",
     };
-    clearDocumentFilterSelections();
     if (documentDetailsFilters) documentDetailsFilters.classList.toggle(
       "hidden",
       !(queriesImportState.rows && queriesImportState.rows.length),
@@ -1420,11 +1717,12 @@
     }
 
     const fullRescan = forceSync ? "&full=1" : "";
+    const dateQs = getDocumentDetailsDateQuery();
     const streamUrl =
       "/api/mail/document-details/stream?folderId=" +
       encodeURIComponent(folderId) +
-      "&limit=150" +
-      fullRescan;
+      fullRescan +
+      dateQs;
 
     if (typeof EventSource === "undefined") {
       await loadDocumentDetailsFetchFallback(folderId, hadCache, forceSync);
@@ -1487,8 +1785,8 @@
       const url =
         "/api/mail/document-details?folderId=" +
         encodeURIComponent(folderId) +
-        "&limit=150" +
-        (forceSync ? "&full=1" : "");
+        (forceSync ? "&full=1" : "") +
+        getDocumentDetailsDateQuery();
       const data = await fetchJsonOrThrow(url);
       setDocumentDetailsFromApi(data);
       setDocumentProgressUI(100, "");
@@ -1503,12 +1801,15 @@
 
   function syncDocumentDetailsFromMailbox() {
     if (!documentDetailsLoading || !docFolderFilter) return;
+    refreshAutoImportDatesIfNeeded();
+    if (!validateDocumentImportDates()) return;
+    persistDocumentImportDates();
     stopDocumentDetailsStream();
     docDetailsError.classList.add("hidden");
     docDetailsError.textContent = "";
     const folderId = docFolderFilter.value ? docFolderFilter.value : selectedFolderId;
     documentDetailsLoading.classList.remove("hidden");
-    setDocumentProgressUI(0, "Scanning mailbox…");
+    setDocumentProgressUI(0, "Starting sync…");
     void loadDocumentDetailsContinue(folderId, { forceSync: true });
   }
 
@@ -1540,13 +1841,36 @@
     });
   }
 
+  function onDocumentImportDateChange() {
+    persistDocumentImportDates();
+    if (!docImportFrom || !docImportTo) return;
+    const a = (docImportFrom.value || "").trim();
+    const b = (docImportTo.value || "").trim();
+    if (!a && !b && !localStorage.getItem(LS_DOC_IMPORT_FROM) && !localStorage.getItem(LS_DOC_IMPORT_TO)) {
+      const auto = computeAutoImportDateRange();
+      docImportFrom.value = auto.from;
+      docImportTo.value = auto.to;
+    }
+    if (!documentDetailsView || documentDetailsView.classList.contains("hidden")) return;
+    loadDocumentDetails();
+  }
+
+  if (docImportFrom) {
+    docImportFrom.addEventListener("change", onDocumentImportDateChange);
+  }
+  if (docImportTo) {
+    docImportTo.addEventListener("change", onDocumentImportDateChange);
+  }
+
   if (tabDocumentsBtn) {
-    tabDocumentsBtn.addEventListener("click", function () {
+    tabDocumentsBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
       switchDocumentDetailsTab("documents");
     });
   }
   if (tabQueriesBtn) {
-    tabQueriesBtn.addEventListener("click", function () {
+    tabQueriesBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
       switchDocumentDetailsTab("queries");
     });
   }

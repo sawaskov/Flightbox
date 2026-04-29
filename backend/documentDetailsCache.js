@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const DOCUMENT_DETAILS_CACHE_VERSION = 1;
 
 /** One file per extraction revision so bumping logic does not wipe other folders mid-migrate. */
-export const DOCUMENT_DETAILS_EXTRACTOR_REVISION = 30;
+export const DOCUMENT_DETAILS_EXTRACTOR_REVISION = 40;
 
 const CACHE_PATH = path.join(
   __dirname,

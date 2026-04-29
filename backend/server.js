@@ -23,6 +23,7 @@ import {
   pairStatementLinesWithHyperlinkUrls,
   zaInclusiveTotalToNetVatGrossStrings,
 } from "./invoiceExtract.js";
+import { writeGoogleExtractDebuggerFile } from "./googleExtractDebug.js";
 import {
   extractHttpsUrlsFromPdfBuffer,
   extractInvNumbersFromPdfBinary,
@@ -51,11 +52,76 @@ const MAILBOX_EMAIL = process.env.MAILBOX_EMAIL || "proofofflightZA@publicis.co.
 const GRAPH_BASE = process.env.GRAPH_API_ENDPOINT || "https://graph.microsoft.com/v1.0";
 const MAX_DOCUMENT_PDF_BYTES =
   parseInt(process.env.MAX_DOCUMENT_PDF_MB || "25", 10) * 1024 * 1024;
+
+/** How many messages per folder to consider when building document-details (newest first). */
+const DOCUMENT_DETAILS_MESSAGE_LIMIT_DEFAULT = Math.max(
+  200,
+  Math.min(
+    10000,
+    parseInt(process.env.DOCUMENT_DETAILS_FOLDER_MESSAGE_LIMIT || "2500", 10) || 2500,
+  ),
+);
+const DOCUMENT_DETAILS_MESSAGE_LIMIT_MAX = 10000;
+
+function effectiveDocumentDetailsLimit(raw) {
+  const n = parseInt(String(raw || "").trim(), 10);
+  if (!Number.isFinite(n) || n < 1) return DOCUMENT_DETAILS_MESSAGE_LIMIT_DEFAULT;
+  return Math.min(Math.max(n, 50), DOCUMENT_DETAILS_MESSAGE_LIMIT_MAX);
+}
 /** Max PDF file attachments parsed per email (Graph + parse cost). Was hard-coded 5 — bulk packs need more. */
 const MAX_PDFS_PER_MESSAGE = Math.max(
   1,
   Math.min(200, parseInt(process.env.MAX_PDFS_PER_MESSAGE || "40", 10)),
 );
+/** When a received-date range is active, allow up to this many PDFs per message (import “all” attachments in range). */
+const MAX_PDFS_PER_MESSAGE_DATE_RANGE = Math.min(
+  200,
+  Math.max(1, parseInt(process.env.MAX_PDFS_PER_MESSAGE_DATE_RANGE || "200", 10) || 200),
+);
+/** Safety cap on messages loaded per folder when filtering by received date (pagination continues until nextLink ends or cap). */
+const DATE_RANGE_MESSAGE_CAP = Math.min(
+  50000,
+  Math.max(
+    1000,
+    parseInt(process.env.DOCUMENT_DETAILS_DATE_RANGE_MESSAGE_CAP || "10000", 10) || 10000,
+  ),
+);
+
+function documentDetailsCacheStorageKey(folderId, receivedFrom, receivedTo) {
+  const f = String(receivedFrom || "").trim();
+  const t = String(receivedTo || "").trim();
+  if (!f && !t) return folderId;
+  const fs = f.replace(/[^\d-]/g, "") || "any";
+  const ts = t.replace(/[^\d-]/g, "") || "any";
+  return `${folderId}__rf_${fs}__rt_${ts}`;
+}
+
+/**
+ * @returns {{ range: { fromIso: string|null, toIso: string|null }|null, from: string, to: string }}
+ */
+function parseReceivedDateQuery(fromStr, toStr) {
+  const from = String(fromStr || "").trim();
+  const to = String(toStr || "").trim();
+  if (!from && !to) {
+    return { range: null, from: "", to: "" };
+  }
+  if (from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    throw new Error("Invalid Import from date (use YYYY-MM-DD).");
+  }
+  if (to && !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    throw new Error("Invalid Import to date (use YYYY-MM-DD).");
+  }
+  const fromIso = from ? `${from}T00:00:00.000Z` : null;
+  const toIso = to ? `${to}T23:59:59.999Z` : null;
+  if (fromIso && toIso && fromIso > toIso) {
+    throw new Error("Import from must be on or before Import to.");
+  }
+  return {
+    range: fromIso || toIso ? { fromIso, toIso } : null,
+    from,
+    to,
+  };
+}
 
 const QUERIES_UPLOAD_MB = Math.max(
   2,
@@ -72,12 +138,12 @@ const queriesUpload = multer({
  */
 const GRAPH_ATTACHMENT_LIST_CONCURRENCY = Math.max(
   1,
-  Math.min(8, parseInt(process.env.GRAPH_ATTACHMENT_LIST_CONCURRENCY || "4", 10)),
+  Math.min(12, parseInt(process.env.GRAPH_ATTACHMENT_LIST_CONCURRENCY || "6", 10)),
 );
 /** Parallel PDF download ($value) + parse. Each download hits the same mailbox concurrency pool. */
 const PDF_PARSE_CONCURRENCY = Math.max(
   1,
-  Math.min(8, parseInt(process.env.PDF_PARSE_CONCURRENCY || "3", 10)),
+  Math.min(12, parseInt(process.env.PDF_PARSE_CONCURRENCY || "5", 10)),
 );
 
 const GRAPH_HTTP_MAX_ATTEMPTS = Math.max(
@@ -121,6 +187,32 @@ async function asyncPool(concurrency, items, fn) {
       const i = next++;
       if (i >= items.length) return;
       results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: c }, () => worker()));
+  return results;
+}
+
+/**
+ * Like asyncPool but invokes onChunk(done, total) every `chunkEvery` completions (and at end).
+ */
+async function asyncPoolWithProgress(concurrency, items, fn, onChunk, chunkEvery = 25) {
+  if (!items.length) return [];
+  const c = Math.max(1, Math.min(concurrency, items.length));
+  const results = new Array(items.length);
+  let next = 0;
+  let completed = 0;
+  const total = items.length;
+  const every = Math.max(1, chunkEvery);
+  async function worker() {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+      completed++;
+      if (onChunk && (completed % every === 0 || completed === total)) {
+        onChunk(completed, total);
+      }
     }
   }
   await Promise.all(Array.from({ length: c }, () => worker()));
@@ -209,16 +301,20 @@ function graphErrorStatus(err) {
   return match ? parseInt(match[1], 10) : null;
 }
 
-/** List attachments; try folder-scoped URL first (required for many mailbox/folder combinations). */
+/**
+ * List attachments. Try the message-global path first so links keep working after the sorter
+ * moves mail out of the folder that was used when document details were cached. Fall back to
+ * folder-scoped URL for edge cases.
+ */
 async function fetchAttachmentCollection(token, messageId, folderId) {
   const encMsg = encodeURIComponent(messageId);
   const paths = [];
+  paths.push(`${userPath()}/messages/${encMsg}/attachments`);
   if (folderId) {
     paths.push(
       `${userPath()}/mailFolders/${encodeURIComponent(folderId)}/messages/${encMsg}/attachments`,
     );
   }
-  paths.push(`${userPath()}/messages/${encMsg}/attachments`);
 
   let lastErr;
   for (const basePath of paths) {
@@ -242,17 +338,17 @@ async function fetchAttachmentCollection(token, messageId, folderId) {
   throw lastErr;
 }
 
-/** Resolve which Graph path works for this attachment (folder vs global message path). */
+/** Resolve attachment metadata: prefer global message path (survives folder moves), then folder-scoped. */
 async function resolveAttachmentMeta(token, messageId, attachmentId, folderId) {
   const encMsg = encodeURIComponent(messageId);
   const encAtt = encodeURIComponent(attachmentId);
   const paths = [];
+  paths.push(`${userPath()}/messages/${encMsg}/attachments/${encAtt}`);
   if (folderId) {
     paths.push(
       `${userPath()}/mailFolders/${encodeURIComponent(folderId)}/messages/${encMsg}/attachments/${encAtt}`,
     );
   }
-  paths.push(`${userPath()}/messages/${encMsg}/attachments/${encAtt}`);
 
   let lastErr;
   for (const metaPath of paths) {
@@ -529,10 +625,54 @@ function deduplicateRowsByDocumentIdentity(rows) {
   return out;
 }
 
-async function buildPdfAttachmentQueue(token, scanFolderId, limit) {
-  const messages = await fetchFolderMessages(token, scanFolderId, limit);
+async function buildPdfAttachmentQueue(token, scanFolderId, limit, report, queueOpts = {}) {
+  const rep = typeof report === "function" ? report : () => {};
+  const receivedDateRange = queueOpts.receivedDateRange || null;
+  const dateActive = !!(
+    receivedDateRange &&
+    (receivedDateRange.fromIso || receivedDateRange.toIso)
+  );
+  const messageCap = dateActive ? DATE_RANGE_MESSAGE_CAP : limit;
+  const effectivePdfCap = dateActive ? MAX_PDFS_PER_MESSAGE_DATE_RANGE : MAX_PDFS_PER_MESSAGE;
+  rep({
+    phase: "queue",
+    percent: 1,
+    done: 0,
+    total: 0,
+    label: dateActive
+      ? `Loading messages in date range (up to ${messageCap})…`
+      : `Loading message list (up to ${limit})…`,
+  });
+  const messages = await fetchFolderMessages(
+    token,
+    scanFolderId,
+    messageCap,
+    (loaded) => {
+      const cap = Math.max(messageCap, 1);
+      const p = Math.min(10, 1 + Math.floor((loaded / cap) * 9));
+      rep({
+        phase: "queue",
+        percent: p,
+        done: 0,
+        total: 0,
+        label: `Fetching messages… ${loaded} / ${messageCap}`,
+      });
+    },
+    {
+      receivedDateRange,
+      paginateAllInRange: dateActive,
+      maxMessages: messageCap,
+    },
+  );
+  rep({
+    phase: "queue",
+    percent: 11,
+    done: 0,
+    total: 0,
+    label: `Found ${messages.length} messages · listing attachments…`,
+  });
   const messagesWithAttachments = messages.filter((m) => m.hasAttachments);
-  const attachmentLists = await asyncPool(
+  const attachmentLists = await asyncPoolWithProgress(
     GRAPH_ATTACHMENT_LIST_CONCURRENCY,
     messagesWithAttachments,
     async (msg) => {
@@ -543,6 +683,17 @@ async function buildPdfAttachmentQueue(token, scanFolderId, limit) {
         return { msg, attachments: [] };
       }
     },
+    (done, total) => {
+      const p = total > 0 ? 11 + Math.floor((done / total) * 5) : 14;
+      rep({
+        phase: "queue",
+        percent: Math.min(15, p),
+        done,
+        total,
+        label: `Listing attachments ${done} / ${total}…`,
+      });
+    },
+    35,
   );
   const queue = [];
   const perMsgPdf = new Map();
@@ -554,7 +705,7 @@ async function buildPdfAttachmentQueue(token, scanFolderId, limit) {
       const size = att.size || 0;
       if (size > MAX_DOCUMENT_PDF_BYTES) continue;
       const n = perMsgPdf.get(msg.id) || 0;
-      if (n >= MAX_PDFS_PER_MESSAGE) continue;
+      if (n >= effectivePdfCap) continue;
       perMsgPdf.set(msg.id, n + 1);
       queue.push({ msg, att, folderId: scanFolderId });
     }
@@ -563,15 +714,58 @@ async function buildPdfAttachmentQueue(token, scanFolderId, limit) {
 }
 
 /** Inbox + every child folder under Inbox; dedupe messages by id; PDFs parsed with correct folder scope. */
-async function buildPdfAttachmentQueueAllFolders(token, limit) {
+async function buildPdfAttachmentQueueAllFolders(token, limit, report, queueOpts = {}) {
+  const rep = typeof report === "function" ? report : () => {};
+  rep({
+    phase: "queue",
+    percent: 1,
+    done: 0,
+    total: 0,
+    label: "Listing folders under Inbox…",
+  });
   const folderIds = ["inbox"];
   const childList = await fetchInboxChildFolders(token);
   folderIds.push(...childList.map((f) => f.id));
-  const perFolder = Math.max(40, Math.ceil(limit / Math.max(1, folderIds.length)));
+  const receivedDateRange = queueOpts.receivedDateRange || null;
+  const dateActive = !!(
+    receivedDateRange &&
+    (receivedDateRange.fromIso || receivedDateRange.toIso)
+  );
+  const effectivePdfCap = dateActive ? MAX_PDFS_PER_MESSAGE_DATE_RANGE : MAX_PDFS_PER_MESSAGE;
+  const perFolder = dateActive
+    ? DATE_RANGE_MESSAGE_CAP
+    : Math.max(150, Math.ceil(limit / Math.max(1, folderIds.length)));
   const seenMsg = new Set();
   const merged = [];
+  let fi = 0;
   for (const fid of folderIds) {
-    const messages = await fetchFolderMessages(token, fid, perFolder);
+    fi++;
+    rep({
+      phase: "queue",
+      percent: Math.min(8, 1 + Math.floor((fi / folderIds.length) * 7)),
+      done: 0,
+      total: 0,
+      label: `Reading folder ${fi} / ${folderIds.length}…`,
+    });
+    const messages = await fetchFolderMessages(
+      token,
+      fid,
+      perFolder,
+      (loaded) => {
+        rep({
+          phase: "queue",
+          percent: Math.min(11, 2 + Math.floor((loaded / Math.max(perFolder, 1)) * 9)),
+          done: 0,
+          total: 0,
+          label: `Folder ${fi}/${folderIds.length}: ${loaded} messages loaded…`,
+        });
+      },
+      {
+        receivedDateRange,
+        paginateAllInRange: dateActive,
+        maxMessages: perFolder,
+      },
+    );
     for (const msg of messages) {
       if (seenMsg.has(msg.id)) continue;
       seenMsg.add(msg.id);
@@ -581,8 +775,15 @@ async function buildPdfAttachmentQueueAllFolders(token, limit) {
   merged.sort((a, b) =>
     String(b.msg.receivedDateTime || "").localeCompare(String(a.msg.receivedDateTime || "")),
   );
+  rep({
+    phase: "queue",
+    percent: 12,
+    done: 0,
+    total: 0,
+    label: `Merged ${merged.length} messages · listing attachments…`,
+  });
   const withAtt = merged.filter((x) => x.msg.hasAttachments);
-  const attachmentLists = await asyncPool(
+  const attachmentLists = await asyncPoolWithProgress(
     GRAPH_ATTACHMENT_LIST_CONCURRENCY,
     withAtt,
     async ({ msg, fid }) => {
@@ -593,6 +794,17 @@ async function buildPdfAttachmentQueueAllFolders(token, limit) {
         return { msg, fid, attachments: [] };
       }
     },
+    (done, total) => {
+      const p = total > 0 ? 12 + Math.floor((done / total) * 4) : 14;
+      rep({
+        phase: "queue",
+        percent: Math.min(15, p),
+        done,
+        total,
+        label: `Listing attachments ${done} / ${total}…`,
+      });
+    },
+    35,
   );
   const queue = [];
   const perMsgPdf = new Map();
@@ -604,7 +816,7 @@ async function buildPdfAttachmentQueueAllFolders(token, limit) {
       const size = att.size || 0;
       if (size > MAX_DOCUMENT_PDF_BYTES) continue;
       const n = perMsgPdf.get(msg.id) || 0;
-      if (n >= MAX_PDFS_PER_MESSAGE) continue;
+      if (n >= effectivePdfCap) continue;
       perMsgPdf.set(msg.id, n + 1);
       queue.push({ msg, att, folderId: fid });
     }
@@ -622,19 +834,34 @@ function sseWrite(res, eventName, payload) {
  * Queue all PDF attachments, then parse each. onProgress({ phase, percent, done, total, label }).
  * opts: { forceFull?: boolean } — forceFull skips cache and fetches all messages up to limit.
  * folderId "all" scans Inbox plus every folder under Inbox (merged view).
+ * @param {number} limit — max messages per folder (newest first); use env default ~2500.
  */
 async function computeDocumentDetailRows(token, folderId, limit, onProgress, opts = {}) {
   const noop = () => {};
   const report = typeof onProgress === "function" ? onProgress : noop;
   const forceFull = !!opts.forceFull;
   const scanAllFolders = String(folderId || "").toLowerCase() === "all";
-  const cacheKey = scanAllFolders ? "all" : folderId;
+
+  const parsedDates = parseReceivedDateQuery(opts.receivedFrom, opts.receivedTo);
+  const receivedDateRange = parsedDates.range;
+  const rawFrom = parsedDates.from;
+  const rawTo = parsedDates.to;
+  const dateRangeActive = !!(
+    receivedDateRange &&
+    (receivedDateRange.fromIso || receivedDateRange.toIso)
+  );
+  const logicalFolderId = scanAllFolders ? "all" : folderId;
+  const cacheStorageKey = documentDetailsCacheStorageKey(logicalFolderId, rawFrom, rawTo);
+  const queueOpts = { receivedDateRange };
+  const effectivePdfCapForIncremental = dateRangeActive
+    ? MAX_PDFS_PER_MESSAGE_DATE_RANGE
+    : MAX_PDFS_PER_MESSAGE;
 
   let cachedRows = [];
   let lastCachedIso = null;
   if (!forceFull) {
     try {
-      const raw = await readFolderRowsFromCache(cacheKey);
+      const raw = await readFolderRowsFromCache(cacheStorageKey);
       cachedRows = deduplicateRowsByDocumentIdentity(raw.map(enrichRowIdsFromHyperlink));
       lastCachedIso = maxEmailReceivedIso(cachedRows);
     } catch {
@@ -658,6 +885,12 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
       cachedRowsUsed: cachedRows.length,
       newPdfAttachmentsParsed: 0,
       forceFull: false,
+      maxPdfsPerMessage: dateRangeActive
+        ? MAX_PDFS_PER_MESSAGE_DATE_RANGE
+        : MAX_PDFS_PER_MESSAGE,
+      receivedFrom: rawFrom,
+      receivedTo: rawTo,
+      dateRangeActive,
     };
   }
 
@@ -667,39 +900,59 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
   let messagesWithAttachmentsCount = 0;
   let queue = [];
 
+  report({
+    phase: "queue",
+    percent: 0,
+    done: 0,
+    total: 0,
+    label: forceFull
+      ? "Starting full sync…"
+      : scanAllFolders
+        ? "Preparing multi-folder scan…"
+        : "Connecting to mailbox…",
+  });
+
   if (scanAllFolders) {
-    report({
-      phase: "queue",
-      percent: 3,
-      done: 0,
-      total: 0,
-      label: "Listing PDFs across all folders…",
-    });
-    const built = await buildPdfAttachmentQueueAllFolders(token, limit);
+    const built = await buildPdfAttachmentQueueAllFolders(token, limit, report, queueOpts);
     queue = built.queue;
     messagesWithAttachmentsCount = built.messagesWithAttachmentsCount;
   } else if (incremental) {
-    const messages = await fetchFolderMessagesSince(token, folderId, lastCachedIso, limit);
     report({
       phase: "queue",
-      percent: 2,
+      percent: 1,
+      done: 0,
+      total: 0,
+      label: "Checking for new mail since last sync…",
+    });
+    const messages = await fetchFolderMessagesSince(
+      token,
+      folderId,
+      lastCachedIso,
+      limit,
+      (loaded) => {
+        report({
+          phase: "queue",
+          percent: Math.min(9, 1 + Math.floor((loaded / Math.max(limit, 1)) * 8)),
+          done: 0,
+          total: 0,
+          label: `Loading new messages… ${loaded} / ${limit}`,
+        });
+      },
+      { receivedDateRange },
+    );
+    report({
+      phase: "queue",
+      percent: 10,
       done: 0,
       total: 0,
       label:
         messages.length === 0
           ? "No new messages since last sync — loading from store…"
-          : `Fetching ${messages.length} new message(s) since cache…`,
+          : `Found ${messages.length} new message(s) · listing attachments…`,
     });
     const messagesWithAttachments = messages.filter((m) => m.hasAttachments);
     messagesWithAttachmentsCount = messagesWithAttachments.length;
-    report({
-      phase: "queue",
-      percent: 5,
-      done: 0,
-      total: 0,
-      label: "Listing PDF attachments…",
-    });
-    const attachmentLists = await asyncPool(
+    const attachmentLists = await asyncPoolWithProgress(
       GRAPH_ATTACHMENT_LIST_CONCURRENCY,
       messagesWithAttachments,
       async (msg) => {
@@ -710,6 +963,17 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
           return { msg, attachments: [] };
         }
       },
+      (done, total) => {
+        const p = total > 0 ? 10 + Math.floor((done / total) * 5) : 13;
+        report({
+          phase: "queue",
+          percent: Math.min(15, p),
+          done,
+          total,
+          label: `Listing attachments ${done} / ${total}…`,
+        });
+      },
+      35,
     );
     const perMsgPdf = new Map();
     for (const { msg, attachments } of attachmentLists) {
@@ -720,23 +984,16 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
         const size = att.size || 0;
         if (size > MAX_DOCUMENT_PDF_BYTES) continue;
         const n = perMsgPdf.get(msg.id) || 0;
-        if (n >= MAX_PDFS_PER_MESSAGE) continue;
+        if (n >= effectivePdfCapForIncremental) continue;
         perMsgPdf.set(msg.id, n + 1);
         queue.push({ msg, att, folderId });
       }
     }
   } else {
-    const built = await buildPdfAttachmentQueue(token, folderId, limit);
+    const built = await buildPdfAttachmentQueue(token, folderId, limit, report, queueOpts);
     queue = built.queue;
     messagesWithAttachmentsCount = built.messagesWithAttachmentsCount;
     incremental = false;
-    report({
-      phase: "queue",
-      percent: 5,
-      done: 0,
-      total: 0,
-      label: "Listing PDF attachments…",
-    });
   }
 
   const totalPdfs = queue.length;
@@ -757,6 +1014,12 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
       cachedRowsUsed: cachedRows.length,
       newPdfAttachmentsParsed: 0,
       forceFull: false,
+      maxPdfsPerMessage: dateRangeActive
+        ? MAX_PDFS_PER_MESSAGE_DATE_RANGE
+        : MAX_PDFS_PER_MESSAGE,
+      receivedFrom: rawFrom,
+      receivedTo: rawTo,
+      dateRangeActive,
     };
   }
 
@@ -777,6 +1040,18 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
     }
 
     const extracted = extractInvoiceFields(text);
+    if (
+      extracted.supplierName === "Google" &&
+      (extracted.documentType === "Credit Memo" ||
+        extracted.documentType === "Invoice")
+    ) {
+      void writeGoogleExtractDebuggerFile(text, {
+        messageId: msg.id,
+        attachmentId: att.id,
+        sourceFileName: att.name || "",
+        folderId: scanFid,
+      });
+    }
     let statementInvoiceRefs = extracted.statementInvoiceRefs || [];
     let pdfHyperlinkUrls = [];
     if (extracted.documentType === "Statement" && pdfBuf) {
@@ -795,7 +1070,9 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
 
     parseDone++;
     const pct =
-      totalPdfs > 0 ? Math.round((parseDone / totalPdfs) * 95) + 5 : 100;
+      totalPdfs > 0
+        ? Math.round(15 + (parseDone / totalPdfs) * 84)
+        : 100;
     report({
       phase: "parse",
       percent: Math.min(99, pct),
@@ -838,7 +1115,7 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
   }
 
   try {
-    const linked = await augmentRowsFromStatementHyperlinks(rows, cacheKey);
+    const linked = await augmentRowsFromStatementHyperlinks(rows, cacheStorageKey);
     if (linked.length) rows.push(...linked);
   } catch (e) {
     console.warn("Statement hyperlink expansion failed:", e.message || e);
@@ -846,13 +1123,13 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
 
   let mergedRows = rows;
   if (incremental && cachedRows.length > 0 && !scanAllFolders) {
-    mergedRows = mergeRowsByAttachmentKey(cacheKey, cachedRows, rows);
+    mergedRows = mergeRowsByAttachmentKey(cacheStorageKey, cachedRows, rows);
   }
 
   mergedRows = deduplicateRowsByDocumentIdentity(mergedRows);
 
   try {
-    await writeFolderRowsToCache(cacheKey, mergedRows);
+    await writeFolderRowsToCache(cacheStorageKey, mergedRows);
   } catch (e) {
     console.warn("Could not save document-details cache:", e.message);
   }
@@ -869,11 +1146,16 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
     rows: mergedRows,
     scannedMessages: messagesWithAttachmentsCount,
     pdfAttachmentsParsed: pdfAttempted,
-    maxPdfsPerMessage: MAX_PDFS_PER_MESSAGE,
+    maxPdfsPerMessage: dateRangeActive
+      ? MAX_PDFS_PER_MESSAGE_DATE_RANGE
+      : MAX_PDFS_PER_MESSAGE,
     incremental,
     cachedRowsUsed: incremental ? cachedRows.length : 0,
     newPdfAttachmentsParsed: pdfAttempted,
     forceFull,
+    receivedFrom: rawFrom,
+    receivedTo: rawTo,
+    dateRangeActive,
   };
 }
 
@@ -939,38 +1221,109 @@ async function fetchInboxChildFolders(token) {
   return list;
 }
 
-// Fetch all messages in a folder (paginated)
-async function fetchFolderMessages(token, folderId, limit = 500) {
-  const path = `${userPath()}/mailFolders/${encodeURIComponent(folderId)}/messages?$top=${Math.min(limit, 500)}&$orderby=receivedDateTime desc&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments`;
+// Fetch all messages in a folder (paginated). Optional onPageProgress(loadedCount) after each page.
+// Optional arg5 fetchOpts: { receivedDateRange?, paginateAllInRange?, maxMessages?, onPageProgress? }
+async function fetchFolderMessages(token, folderId, limit = 500, arg4, arg5) {
+  let onPageProgress;
+  let fetchOpts = {};
+  if (typeof arg4 === "function") {
+    onPageProgress = arg4;
+    if (arg5 && typeof arg5 === "object") fetchOpts = arg5;
+  } else if (arg4 && typeof arg4 === "object") {
+    fetchOpts = arg4;
+    onPageProgress = fetchOpts.onPageProgress;
+  }
+  const receivedDateRange = fetchOpts.receivedDateRange || null;
+  const paginateAllInRange = !!fetchOpts.paginateAllInRange;
+  const hasDate = !!(
+    receivedDateRange &&
+    (receivedDateRange.fromIso || receivedDateRange.toIso)
+  );
+  let hardCap = limit;
+  if (hasDate && paginateAllInRange) {
+    const cap =
+      fetchOpts.maxMessages != null ? fetchOpts.maxMessages : DATE_RANGE_MESSAGE_CAP;
+    hardCap = Math.min(DATE_RANGE_MESSAGE_CAP, Math.max(limit, cap));
+  }
+  const pageTop = Math.min(hardCap, 999);
+  const filterParts = [];
+  if (hasDate) {
+    if (receivedDateRange.fromIso) {
+      filterParts.push(`receivedDateTime ge ${receivedDateRange.fromIso}`);
+    }
+    if (receivedDateRange.toIso) {
+      filterParts.push(`receivedDateTime le ${receivedDateRange.toIso}`);
+    }
+  }
+  const dateFilter = filterParts.join(" and ");
+  const path = dateFilter
+    ? `${userPath()}/mailFolders/${encodeURIComponent(folderId)}/messages?$filter=${encodeURIComponent(dateFilter)}&$orderby=receivedDateTime desc&$top=${pageTop}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments`
+    : `${userPath()}/mailFolders/${encodeURIComponent(folderId)}/messages?$top=${pageTop}&$orderby=receivedDateTime desc&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments`;
   const data = await graphGet(token, path);
   let list = data.value || [];
   let nextLink = data["@odata.nextLink"];
-  while (nextLink && list.length < limit) {
+  if (typeof onPageProgress === "function") {
+    onPageProgress(Math.min(list.length, hardCap));
+  }
+  while (nextLink && list.length < hardCap) {
     const next = await graphGet(token, nextLink);
     list = list.concat(next.value || []);
     nextLink = next["@odata.nextLink"];
+    if (typeof onPageProgress === "function") {
+      onPageProgress(Math.min(list.length, hardCap));
+    }
   }
-  return list.slice(0, limit);
+  return list.slice(0, hardCap);
 }
 
 /** Messages received strictly after `sinceIso` (ISO 8601). Falls back to full folder fetch on filter errors. */
-async function fetchFolderMessagesSince(token, folderId, sinceIso, limit = 500) {
-  if (!sinceIso) return fetchFolderMessages(token, folderId, limit);
-  const filter = `receivedDateTime gt ${sinceIso}`;
-  const base = `${userPath()}/mailFolders/${encodeURIComponent(folderId)}/messages?$filter=${encodeURIComponent(filter)}&$orderby=receivedDateTime desc&$top=${Math.min(limit, 500)}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments`;
+async function fetchFolderMessagesSince(
+  token,
+  folderId,
+  sinceIso,
+  limit = 500,
+  onPageProgress,
+  fetchOpts = {},
+) {
+  const receivedDateRange = fetchOpts.receivedDateRange || null;
+  const hasRange = !!(
+    receivedDateRange &&
+    (receivedDateRange.fromIso || receivedDateRange.toIso)
+  );
+  if (!sinceIso) {
+    return fetchFolderMessages(token, folderId, limit, onPageProgress, fetchOpts);
+  }
+  const parts = [`receivedDateTime gt ${sinceIso}`];
+  if (hasRange) {
+    if (receivedDateRange.fromIso) {
+      parts.push(`receivedDateTime ge ${receivedDateRange.fromIso}`);
+    }
+    if (receivedDateRange.toIso) {
+      parts.push(`receivedDateTime le ${receivedDateRange.toIso}`);
+    }
+  }
+  const filter = parts.join(" and ");
+  const pageTop = Math.min(limit, 999);
+  const base = `${userPath()}/mailFolders/${encodeURIComponent(folderId)}/messages?$filter=${encodeURIComponent(filter)}&$orderby=receivedDateTime desc&$top=${pageTop}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments`;
   try {
     const data = await graphGet(token, base);
     let list = data.value || [];
     let nextLink = data["@odata.nextLink"];
+    if (typeof onPageProgress === "function") {
+      onPageProgress(Math.min(list.length, limit));
+    }
     while (nextLink && list.length < limit) {
       const next = await graphGet(token, nextLink);
       list = list.concat(next.value || []);
       nextLink = next["@odata.nextLink"];
+      if (typeof onPageProgress === "function") {
+        onPageProgress(Math.min(list.length, limit));
+      }
     }
     return list.slice(0, limit);
   } catch (err) {
     console.warn("Incremental message filter failed, using full folder fetch:", err.message);
-    return fetchFolderMessages(token, folderId, limit);
+    return fetchFolderMessages(token, folderId, limit, onPageProgress, fetchOpts);
   }
 }
 
@@ -1006,6 +1359,153 @@ async function buildDomainToFolderMap(token, inboxChildFolders, samplePerFolder 
     }
   }
   return domainToFolder;
+}
+
+/**
+ * @param {string} token
+ * @param {(p: { phase: string, percent: number, label?: string }) => void} [onProgress]
+ */
+async function runMailSort(token, onProgress) {
+  const emit =
+    typeof onProgress === "function"
+      ? onProgress
+      : () => {};
+  const base = userPath();
+
+  const report = {
+    domainMap: [],
+    allocated: [],
+    corrected: [],
+    leftInInbox: 0,
+    errors: [],
+  };
+
+  emit({ phase: "setup", percent: 3, label: "Loading Inbox folders…" });
+  await graphGet(token, `${base}/mailFolders/inbox`);
+  const childList = await fetchInboxChildFolders(token);
+  const childFolders = childList.map((f) => ({
+    id: f.id,
+    displayName: f.displayName,
+  }));
+
+  if (childFolders.length === 0) {
+    return {
+      report,
+      message:
+        "No child folders under Inbox. Create folders (e.g. 12 Star, 365 Digital) first.",
+    };
+  }
+
+  emit({
+    phase: "domain-map",
+    percent: 8,
+    label: "Mapping sender domains to folders…",
+  });
+  const domainToFolder = await buildDomainToFolderMap(token, childFolders, 150);
+  for (const [domain, info] of domainToFolder) {
+    report.domainMap.push({
+      domain,
+      folderId: info.folderId,
+      folderName: info.folderName,
+    });
+  }
+
+  emit({ phase: "allocate", percent: 12, label: "Reading Inbox…" });
+  const inboxMessages = await fetchFolderMessages(token, "inbox", 500);
+  const nInbox = inboxMessages.length;
+
+  for (let i = 0; i < inboxMessages.length; i++) {
+    const msg = inboxMessages[i];
+    const domain = getSenderDomain(msg);
+    const target = domain ? domainToFolder.get(domain) : null;
+    if (!target) {
+      report.leftInInbox++;
+    } else {
+      try {
+        await graphPost(token, `${base}/messages/${msg.id}/move`, {
+          destinationId: target.folderId,
+        });
+        report.allocated.push({
+          messageId: msg.id,
+          subject: msg.subject,
+          from: msg.from?.emailAddress?.address,
+          fromDomain: domain,
+          toFolder: target.folderName,
+        });
+      } catch (e) {
+        report.errors.push({
+          action: "allocate",
+          subject: msg.subject,
+          error: e.message,
+        });
+      }
+    }
+    const pct = 12 + Math.floor(((i + 1) / Math.max(nInbox, 1)) * 38);
+    emit({
+      phase: "allocate",
+      percent: Math.min(pct, 50),
+      label:
+        nInbox === 0
+          ? "Inbox is empty."
+          : "Inbox: " + (i + 1) + " / " + nInbox + " messages…",
+    });
+  }
+
+  const numFolders = childFolders.length;
+  for (let fi = 0; fi < childFolders.length; fi++) {
+    const folder = childFolders[fi];
+    const messages = await fetchFolderMessages(token, folder.id, 300);
+    const n = messages.length;
+    emit({
+      phase: "correct",
+      percent: 50 + Math.floor((fi / Math.max(numFolders, 1)) * 4),
+      label: "Checking folder “" + folder.displayName + "”…",
+    });
+    for (let mi = 0; mi < messages.length; mi++) {
+      const msg = messages[mi];
+      const domain = getSenderDomain(msg);
+      const target = domain ? domainToFolder.get(domain) : null;
+      if (target && target.folderId !== folder.id) {
+        try {
+          await graphPost(token, `${base}/messages/${msg.id}/move`, {
+            destinationId: target.folderId,
+          });
+          report.corrected.push({
+            messageId: msg.id,
+            subject: msg.subject,
+            from: msg.from?.emailAddress?.address,
+            fromDomain: domain,
+            fromFolder: folder.displayName,
+            toFolder: target.folderName,
+          });
+        } catch (e) {
+          report.errors.push({
+            action: "correct",
+            subject: msg.subject,
+            error: e.message,
+          });
+        }
+      }
+      const sub = (mi + 1) / Math.max(n, 1);
+      const pct = 50 + Math.floor(((fi + sub) / Math.max(numFolders, 1)) * 48);
+      emit({
+        phase: "correct",
+        percent: Math.min(Math.round(pct), 99),
+        label:
+          folder.displayName +
+          ": " +
+          (mi + 1) +
+          " / " +
+          n +
+          " messages…",
+      });
+    }
+  }
+
+  emit({ phase: "done", percent: 100, label: "Finishing…" });
+
+  const message = `Allocated ${report.allocated.length} to folders, corrected ${report.corrected.length} mis-filed. ${report.leftInInbox} left in Inbox (no matching domain).`;
+  return { report, message };
 }
 
 // Inbox endpoint: returns messages for the configured mailbox
@@ -1058,19 +1558,27 @@ app.get("/api/mail/folders", async (req, res) => {
 });
 
 // Last-saved rows only — no Microsoft Graph call (instant first paint for Document details).
-// GET /api/mail/document-details/cached?folderId=inbox
+// GET /api/mail/document-details/cached?folderId=inbox&receivedFrom=&receivedTo=
 app.get("/api/mail/document-details/cached", async (req, res) => {
   try {
     const folderId =
       typeof req.query.folderId === "string" && req.query.folderId.length > 0
         ? req.query.folderId
         : "inbox";
+    const receivedFrom =
+      typeof req.query.receivedFrom === "string" ? req.query.receivedFrom : "";
+    const receivedTo =
+      typeof req.query.receivedTo === "string" ? req.query.receivedTo : "";
+    parseReceivedDateQuery(receivedFrom, receivedTo);
+    const cacheKey = documentDetailsCacheStorageKey(folderId, receivedFrom, receivedTo);
     const rows = deduplicateRowsByDocumentIdentity(
-      (await readFolderRowsFromCache(folderId)).map(enrichRowIdsFromHyperlink),
+      (await readFolderRowsFromCache(cacheKey)).map(enrichRowIdsFromHyperlink),
     );
     res.json({
       mailbox: MAILBOX_EMAIL,
       folderId,
+      receivedFrom,
+      receivedTo,
       rows,
       rowCount: rows.length,
       fromDisk: true,
@@ -1092,16 +1600,26 @@ app.get("/api/mail/document-details", async (req, res) => {
       typeof req.query.folderId === "string" && req.query.folderId.length > 0
         ? req.query.folderId
         : "inbox";
-    const limit = Math.min(parseInt(req.query.limit, 10) || 120, 250);
+    const limit = effectiveDocumentDetailsLimit(req.query.limit);
     const forceFull =
       req.query.full === "1" || req.query.full === "true" || req.query.mode === "full";
+    const receivedFrom =
+      typeof req.query.receivedFrom === "string" ? req.query.receivedFrom : "";
+    const receivedTo =
+      typeof req.query.receivedTo === "string" ? req.query.receivedTo : "";
     const token = await getAccessToken();
     const result = await computeDocumentDetailRows(token, folderId, limit, null, {
       forceFull,
+      receivedFrom,
+      receivedTo,
     });
     res.json({
       mailbox: MAILBOX_EMAIL,
       folderId,
+      receivedFrom: result.receivedFrom ?? receivedFrom,
+      receivedTo: result.receivedTo ?? receivedTo,
+      dateRangeActive: !!result.dateRangeActive,
+      messageScanLimit: limit,
       scannedMessages: result.scannedMessages,
       pdfAttachmentsParsed: result.pdfAttachmentsParsed,
       maxPdfsPerMessage: result.maxPdfsPerMessage ?? MAX_PDFS_PER_MESSAGE,
@@ -1127,9 +1645,13 @@ app.get("/api/mail/document-details/stream", async (req, res) => {
     typeof req.query.folderId === "string" && req.query.folderId.length > 0
       ? req.query.folderId
       : "inbox";
-  const limit = Math.min(parseInt(req.query.limit, 10) || 120, 250);
+  const limit = effectiveDocumentDetailsLimit(req.query.limit);
   const forceFull =
     req.query.full === "1" || req.query.full === "true" || req.query.mode === "full";
+  const receivedFrom =
+    typeof req.query.receivedFrom === "string" ? req.query.receivedFrom : "";
+  const receivedTo =
+    typeof req.query.receivedTo === "string" ? req.query.receivedTo : "";
 
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -1145,12 +1667,17 @@ app.get("/api/mail/document-details/stream", async (req, res) => {
       limit,
       (p) => {
         sseWrite(res, "progress", p);
+        if (typeof res.flush === "function") res.flush();
       },
-      { forceFull },
+      { forceFull, receivedFrom, receivedTo },
     );
     sseWrite(res, "complete", {
       mailbox: MAILBOX_EMAIL,
       folderId,
+      receivedFrom: result.receivedFrom ?? receivedFrom,
+      receivedTo: result.receivedTo ?? receivedTo,
+      dateRangeActive: !!result.dateRangeActive,
+      messageScanLimit: limit,
       scannedMessages: result.scannedMessages,
       pdfAttachmentsParsed: result.pdfAttachmentsParsed,
       maxPdfsPerMessage: result.maxPdfsPerMessage ?? MAX_PDFS_PER_MESSAGE,
@@ -1323,6 +1850,16 @@ app.get("/api/mail/attachment-content", async (req, res) => {
       });
     }
     const folderId = typeof req.query.folderId === "string" ? req.query.folderId : "";
+    if (
+      String(attachmentId).includes(":stmt-href:") ||
+      String(attachmentId).includes(":stmt-synth:")
+    ) {
+      return res.status(400).json({
+        error: "Not a mailbox file attachment",
+        message:
+          "This row is generated from a statement link, not a PDF in the email. Open the tax-invoice link from the source email or add the PDF as an attachment.",
+      });
+    }
     const token = await getAccessToken();
     const { meta, metaPath } = await resolveAttachmentMeta(
       token,
@@ -1389,94 +1926,40 @@ app.get("/api/mail/folders/:folderId/messages", async (req, res) => {
   }
 });
 
-// Run sorter: allocate inbox by domain, correct mis-filed, return report
+// SSE: progress while running domain sorter — used by dashboard Run sorter button
+// GET /api/mail/run-sort/stream
+app.get("/api/mail/run-sort/stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") res.flushHeaders();
+
+  try {
+    const token = await getAccessToken();
+    const result = await runMailSort(token, (p) => sseWrite(res, "progress", p));
+    sseWrite(res, "complete", {
+      mailbox: MAILBOX_EMAIL,
+      report: result.report,
+      message: result.message,
+    });
+    res.end();
+  } catch (err) {
+    console.error("Run-sort stream error:", err.message);
+    sseWrite(res, "fatal", { message: err.message });
+    res.end();
+  }
+});
+
+// Run sorter: allocate inbox by domain, correct mis-filed, return report (no progress events)
 app.post("/api/mail/run-sort", async (req, res) => {
   try {
     const token = await getAccessToken();
-    const base = userPath();
-
-    const inboxRes = await graphGet(token, `${base}/mailFolders/inbox`);
-    const childList = await fetchInboxChildFolders(token);
-    const childFolders = childList.map((f) => ({
-      id: f.id,
-      displayName: f.displayName,
-    }));
-
-    const report = {
-      domainMap: [],
-      allocated: [],
-      corrected: [],
-      leftInInbox: 0,
-      errors: [],
-    };
-
-    if (childFolders.length === 0) {
-      return res.json({
-        mailbox: MAILBOX_EMAIL,
-        report,
-        message: "No child folders under Inbox. Create folders (e.g. 12 Star, 365 Digital) first.",
-      });
-    }
-
-    const domainToFolder = await buildDomainToFolderMap(token, childFolders, 150);
-    const folderById = new Map(childFolders.map((f) => [f.id, f.displayName]));
-
-    for (const [domain, info] of domainToFolder) {
-      report.domainMap.push({ domain, folderId: info.folderId, folderName: info.folderName });
-    }
-
-    const inboxMessages = await fetchFolderMessages(token, "inbox", 500);
-    for (const msg of inboxMessages) {
-      const domain = getSenderDomain(msg);
-      const target = domain ? domainToFolder.get(domain) : null;
-      if (!target) {
-        report.leftInInbox++;
-        continue;
-      }
-      try {
-        await graphPost(token, `${base}/messages/${msg.id}/move`, {
-          destinationId: target.folderId,
-        });
-        report.allocated.push({
-          messageId: msg.id,
-          subject: msg.subject,
-          from: msg.from?.emailAddress?.address,
-          fromDomain: domain,
-          toFolder: target.folderName,
-        });
-      } catch (e) {
-        report.errors.push({ action: "allocate", subject: msg.subject, error: e.message });
-      }
-    }
-
-    for (const folder of childFolders) {
-      const messages = await fetchFolderMessages(token, folder.id, 300);
-      for (const msg of messages) {
-        const domain = getSenderDomain(msg);
-        const target = domain ? domainToFolder.get(domain) : null;
-        if (!target || target.folderId === folder.id) continue;
-        try {
-          await graphPost(token, `${base}/messages/${msg.id}/move`, {
-            destinationId: target.folderId,
-          });
-          report.corrected.push({
-            messageId: msg.id,
-            subject: msg.subject,
-            from: msg.from?.emailAddress?.address,
-            fromDomain: domain,
-            fromFolder: folder.displayName,
-            toFolder: target.folderName,
-          });
-        } catch (e) {
-          report.errors.push({ action: "correct", subject: msg.subject, error: e.message });
-        }
-      }
-    }
-
+    const { report, message } = await runMailSort(token);
     res.json({
       mailbox: MAILBOX_EMAIL,
       report,
-      message: `Allocated ${report.allocated.length} to folders, corrected ${report.corrected.length} mis-filed. ${report.leftInInbox} left in Inbox (no matching domain).`,
+      message,
     });
   } catch (err) {
     console.error("Run-sort error:", err.message);
@@ -1508,4 +1991,8 @@ app.listen(PORT, LISTEN_HOST, () => {
   console.log(`Document details (JSON): GET http://localhost:${PORT}/api/mail/document-details?folderId=inbox`);
   console.log(`Document details cache: GET http://localhost:${PORT}/api/mail/document-details/cached?folderId=inbox`);
   console.log(`Document details (SSE):  GET http://localhost:${PORT}/api/mail/document-details/stream?folderId=inbox`);
+  console.log(`Run sorter (SSE):       GET http://localhost:${PORT}/api/mail/run-sort/stream`);
+  console.log(
+    `Document details scan depth: ${DOCUMENT_DETAILS_MESSAGE_LIMIT_DEFAULT} msgs/folder (cap ${DOCUMENT_DETAILS_MESSAGE_LIMIT_MAX}, env DOCUMENT_DETAILS_FOLDER_MESSAGE_LIMIT)`,
+  );
 });

@@ -1,0 +1,169 @@
+=== FILE ===
+C:\Users\Speccon Admin\OneDrive - Speccon Holdings (Pty) Ltd\Desktop\FlightBox\googleinvoice3.pdf
+
+=== RAW TEXT (as returned by pdf-parse) ===
+For questions about this invoice please email collections@google.com 	Page 1 of 4
+Invoice
+Invoice number: 5485801183
+..............................................................	5485801183
+..............................................................	31 Jan 2026
+..............................................................	Net 30
+..............................................................	2282-5888-4233
+..............................................................	534-161-1903
+Details
+Invoice number
+Invoice date
+Payment terms
+Billing ID
+Account ID
+ZAR 105,012.63
+Due 2 Mar 2026
+Google Ads
+Total amount due in ZAR
+ZAR 91,315.33
+ZAR 13,697.30
+ZAR 105,012.63
+Summary for 1 Jan 2026 - 31 Jan 2026
+Pay in ZAR:
+Subtotal in ZAR
+VAT (15%)
+Total amount due in ZAR
+Google Ireland Limited
+Gordon House
+Barrow Street
+Dublin 4
+Ireland
+VAT number: 4680265651
+Bill to
+Celeste Jacobs
+MMS Communications South Africa (Pty) Ltd
+10 Muswell Road, Building 1, Ground Floor, South Wing
+Silver Stream Business Park, Bryanston
+Johannesburg
+2194
+South Africa
+To pay by bank transfer, send to:
+Account holder name: Google Ireland Limited
+Bank: Citibank
+SWIFT BIC: CITIZAJX
+Branch code: 350005
+Account no.: 0201084008
+Bank branch address:
+Citigroup Corporate and Investment Banking
+145 West Street
+Sandton
+2196
+South Africa
+*Remittance instructions: To help ensure that your payments are matched correctly and on time, include invoice numbers when
+making your payment. If you're paying for multiple invoices, email collections@google.com and include your company name, total
+payment amount, invoice numbers and respective amounts for each invoice. Send your payments only to the bank account listed on this
+invoice.
+
+-- 1 of 4 --
+
+Invoice 	Invoice number: 5485801183
+For questions about this invoice please email collections@google.com 	Page 2 of 4
+ZAR 105,012.63	Total in ZAR
+Summary of costs by account budget
+1 Jan 2026 - 31 Jan 2026
+Account
+ID Account 	Account budget 	Purchase Order 	Amount(ZAR)
+534-161-
+1903 Peugeot_ZA 202510009 R178560 + 2025100066
+R47616 +R29760 ext to 15 Jan
+202510009 R178560 + 2025100066
+R47616 +R29760 ext to 15 Jan 37,044.17
+534-161-
+1903 Peugeot_ZA 2026010050 R178560 + 2026010082
+R29760
+2026010050 R178560 + 2026010082
+R29760 67,968.46
+
+-- 2 of 4 --
+
+Invoice 	Invoice number: 5485801183
+For questions about this invoice please email collections@google.com 	Page 3 of 4
+ZAR 32,212.32
+ZAR 4,831.85
+ZAR 37,044.17
+Subtotal in ZAR
+VAT (15%)
+Total in ZAR
+Account: Peugeot_ZA
+Account ID: 534-161-1903
+Account budget: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan
+Purchase order: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan
+1 Jan 2026 - 16 Jan 2026
+Description 	Quantity Units Amount(ZAR)
+BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
+H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 1217 Clicks 	10,501.43
+BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P
+SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 1758 Clicks 	10,499.44
+BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~
+Google Ads_FS~SA_ID~OSB0002OXD 222 Clicks 	4,461.72
+BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH
+~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 419 Clicks 	2,249.98
+BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
+D_FF~Google Ads_FS~SA_ID~OSB0002OQW 771 Clicks 	1,499.98
+BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
+H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 316 Clicks 	1,499.96
+BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
+D_FF~Google Ads_FS~SA_ID~OSB0002OQT 501 Clicks 	1,499.81
+
+-- 3 of 4 --
+
+Invoice 	Invoice number: 5485801183
+For questions about this invoice please email collections@google.com 	Page 4 of 4
+ZAR 59,103.01
+ZAR 8,865.45
+ZAR 67,968.46
+Subtotal in ZAR
+VAT (15%)
+Total in ZAR
+Account: Peugeot_ZA
+Account ID: 534-161-1903
+Account budget: 2026010050 R178560 + 2026010082 R29760
+Purchase order: 2026010050 R178560 + 2026010082 R29760
+22 Jan 2026 - 31 Jan 2026
+Description 	Quantity Units Amount(ZAR)
+BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P
+SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 2988 Clicks 	27,622.69
+BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
+D_FF~Google Ads_FS~SA_ID~OSB0002OQW 1149 Clicks 	11,995.68
+BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
+D_FF~Google Ads_FS~SA_ID~OSB0002OQT 498 Clicks 	9,903.87
+BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
+H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 477 Clicks 	5,534.25
+BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~
+Google Ads_FS~SA_ID~OSB0002OXD 41 Clicks 	1,440.00
+BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH
+~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 272 Clicks 	1,368.38
+BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
+H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 279 Clicks 	1,238.14
+
+-- 4 of 4 --
+
+
+
+=== SINGLE-LINE FLAT ===
+For questions about this invoice please email collections@google.com Page 1 of 4 Invoice Invoice number: 5485801183 .............................................................. 5485801183 .............................................................. 31 Jan 2026 .............................................................. Net 30 .............................................................. 2282-5888-4233 .............................................................. 534-161-1903 Details Invoice number Invoice date Payment terms Billing ID Account ID ZAR 105,012.63 Due 2 Mar 2026 Google Ads Total amount due in ZAR ZAR 91,315.33 ZAR 13,697.30 ZAR 105,012.63 Summary for 1 Jan 2026 - 31 Jan 2026 Pay in ZAR: Subtotal in ZAR VAT (15%) Total amount due in ZAR Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 4680265651 Bill to Celeste Jacobs MMS Communications South Africa (Pty) Ltd 10 Muswell Road, Building 1, Ground Floor, South Wing Silver Stream Business Park, Bryanston Johannesburg 2194 South Africa To pay by bank transfer, send to: Account holder name: Google Ireland Limited Bank: Citibank SWIFT BIC: CITIZAJX Branch code: 350005 Account no.: 0201084008 Bank branch address: Citigroup Corporate and Investment Banking 145 West Street Sandton 2196 South Africa *Remittance instructions: To help ensure that your payments are matched correctly and on time, include invoice numbers when making your payment. If you're paying for multiple invoices, email collections@google.com and include your company name, total payment amount, invoice numbers and respective amounts for each invoice. Send your payments only to the bank account listed on this invoice. -- 1 of 4 -- Invoice Invoice number: 5485801183 For questions about this invoice please email collections@google.com Page 2 of 4 ZAR 105,012.63 Total in ZAR Summary of costs by account budget 1 Jan 2026 - 31 Jan 2026 Account ID Account Account budget Purchase Order Amount(ZAR) 534-161- 1903 Peugeot_ZA 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan 37,044.17 534-161- 1903 Peugeot_ZA 2026010050 R178560 + 2026010082 R29760 2026010050 R178560 + 2026010082 R29760 67,968.46 -- 2 of 4 -- Invoice Invoice number: 5485801183 For questions about this invoice please email collections@google.com Page 3 of 4 ZAR 32,212.32 ZAR 4,831.85 ZAR 37,044.17 Subtotal in ZAR VAT (15%) Total in ZAR Account: Peugeot_ZA Account ID: 534-161-1903 Account budget: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan Purchase order: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan 1 Jan 2026 - 16 Jan 2026 Description Quantity Units Amount(ZAR) BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 1217 Clicks 10,501.43 BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 1758 Clicks 10,499.44 BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~ Google Ads_FS~SA_ID~OSB0002OXD 222 Clicks 4,461.72 BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH ~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 419 Clicks 2,249.98 BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQW 771 Clicks 1,499.98 BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 316 Clicks 1,499.96 BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQT 501 Clicks 1,499.81 -- 3 of 4 -- Invoice Invoice number: 5485801183 For questions about this invoice please email collections@google.com Page 4 of 4 ZAR 59,103.01 ZAR 8,865.45 ZAR 67,968.46 Subtotal in ZAR VAT (15%) Total in ZAR Account: Peugeot_ZA Account ID: 534-161-1903 Account budget: 2026010050 R178560 + 2026010082 R29760 Purchase order: 2026010050 R178560 + 2026010082 R29760 22 Jan 2026 - 31 Jan 2026 Description Quantity Units Amount(ZAR) BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 2988 Clicks 27,622.69 BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQW 1149 Clicks 11,995.68 BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQT 498 Clicks 9,903.87 BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 477 Clicks 5,534.25 BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~ Google Ads_FS~SA_ID~OSB0002OXD 41 Clicks 1,440.00 BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH ~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 272 Clicks 1,368.38 BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 279 Clicks 1,238.14 -- 4 of 4 -- 
+
+=== extractInvoiceFields (same as Document details API) ===
+{
+  "dateDocumentIssued": "31-Jan-26",
+  "documentType": "Invoice",
+  "documentNo": "5485801183",
+  "grossAmount": "105,012.63",
+  "netAmount": "105,012.63",
+  "vatAmount": "0.00",
+  "totalAmount": "105,012.63",
+  "supplierName": "Google",
+  "clientName": "",
+  "brandName": "",
+  "campaignName": "",
+  "campCampaignNo": "",
+  "bookingOrderNo": "",
+  "contractNumber": "",
+  "purchaseOrderNumber": "",
+  "statementInvoiceRefs": []
+}
