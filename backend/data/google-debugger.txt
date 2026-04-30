@@ -1,10 +1,10 @@
 === Google DV360 (Credit Memo / Invoice) — extract debugger ===
 Written to: data/google-debugger.txt when a Google Ireland DV360 PDF is parsed.
 
-timestamp: 2026-04-29T13:48:07.061Z
-messageId: AAMkAGViMjVhODNjLTJkMzItNGM2Yi04MzQwLWFmMjAyNzIwMDQ1MwBGAAAAAACpXcmrdjE_Tq6GmtoqNsKjBwC8o4EI8ccnTo3SmNTufMBcAAALkBuAAABhiP-74szkSqnhXD6P5tZCAAVQDRcSAAA=
-attachmentId: AAMkAGViMjVhODNjLTJkMzItNGM2Yi04MzQwLWFmMjAyNzIwMDQ1MwBGAAAAAACpXcmrdjE_Tq6GmtoqNsKjBwC8o4EI8ccnTo3SmNTufMBcAAALkBuAAABhiP-74szkSqnhXD6P5tZCAAVQDRcSAAABEgAQALMh8xvBzv5Hg8qMH2bM_9I=
-sourceFileName: 5455503524.pdf
+timestamp: 2026-04-30T11:58:08.510Z
+messageId: AAMkAGViMjVhODNjLTJkMzItNGM2Yi04MzQwLWFmMjAyNzIwMDQ1MwBGAAAAAACpXcmrdjE_Tq6GmtoqNsKjBwC8o4EI8ccnTo3SmNTufMBcAAALkBuAAABhiP-74szkSqnhXD6P5tZCAAVQDResAAA=
+attachmentId: AAMkAGViMjVhODNjLTJkMzItNGM2Yi04MzQwLWFmMjAyNzIwMDQ1MwBGAAAAAACpXcmrdjE_Tq6GmtoqNsKjBwC8o4EI8ccnTo3SmNTufMBcAAALkBuAAABhiP-74szkSqnhXD6P5tZCAAVQDResAAABEgAQALOtkKUdEmJPjaXoDvUOsxk=
+sourceFileName: 5466175670.pdf
 folderId: AAMkAGViMjVhODNjLTJkMzItNGM2Yi04MzQwLWFmMjAyNzIwMDQ1MwAuAAAAAACpXcmrdjE_Tq6GmtoqNsKjAQC8o4EI8ccnTo3SmNTufMBcAAALkBuAAAA=
 isGoogleCreditMemo: false
 isGoogleInvoice: true
@@ -13,17 +13,17 @@ isGoogleExtract: true
 
 --- extracted fields ---
 {
-  "dateDocumentIssued": "31-Dec-25",
+  "dateDocumentIssued": "05-Jan-26",
   "documentType": "Invoice",
-  "documentNo": "5455503524",
-  "grossAmount": "4,318,122.61",
-  "netAmount": "4,318,122.61",
-  "vatAmount": "647,718.31",
-  "totalAmount": "4,965,840.92",
+  "documentNo": "5466175670",
+  "grossAmount": "771,510.86",
+  "netAmount": "771,510.86",
+  "vatAmount": "115,726.67",
+  "totalAmount": "887,237.53",
   "supplierName": "Google",
-  "clientName": "Visa c/o Starcom",
-  "brandName": "Visa_DE_Brand/Other_SMV",
-  "campaignName": "Description Quantity UOM Amount(US$) Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Dis ney + ID: 1024305714 1 EA 97,339.31 Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Dis ney + ID: 1024305714 1 EA 3,114.85 Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Spotify PG ID: 1024306686 1 EA 123,579.56 Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Spotify PG ID: 1024306686 1 EA 3,954.54 Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PREF-DDC-DM-OLYW-MiCo-Digit al-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC~B2C_PCB~PREF_PM~XBS _DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XL TG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404 1 EA 18,387.34 Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PREF-DDC-DM-OLYW-MiCo-Digit al-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC~B2C_PCB~PREF_PM~XBS _DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XL TG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404 1 EA 1,562.87 Third-party Fees - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PRE F-DDC-DM-OLYW-MiCo-Digital-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC ~B2C_PCB~PREF_PM~XBS_DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XLTG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404 1 EA 1,429.76",
+  "clientName": "",
+  "brandName": "",
+  "campaignName": "Description Quantity UOM Amount(US$) Description: Media Cost Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order: 1022296715 38,775.28 Description: Platform Fee Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order: 1022296715 3,295.90 Description: Total cost (data cost, platform add-on fee, third-party data) Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order: 1022296715 963.87",
   "campCampaignNo": "",
   "bookingOrderNo": "",
   "contractNumber": "",
@@ -34,32 +34,32 @@ isGoogleExtract: true
 --- pattern snippets from flat text ---
 {
   "subtotalSnippets": [
-    "Subtotal in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.31625 Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 46"
+    "Subtotal in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.9275 Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 468"
   ],
   "vatSnippets": [
-    "VAT (15%) Total amount due in USD For reference in ZAR: Subtotal in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.31625",
-    "VAT (15%) Total in USD Advertiser Id:1610899 1 Dec 2025 - 31 Dec 2025 Description Quantity UOM Amount(US$) Media Cost - Partner: "
+    "VAT (15%) Total amount due in USD For reference in ZAR: Subtotal in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.9275 ",
+    "VAT (15%) Total in USD Partner Id:1412043312 1 Aug 2025 - 31 Aug 2025 Description Quantity UOM Amount(US$) Description: Media Cos"
   ],
   "totalSnippets": [
-    "total in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.31625 Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 46"
+    "total in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.9275 Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 468"
   ],
   "zarLike": [
-    "ZAR 4,318,122.61",
-    "ZAR 647,718.31",
-    "ZAR 4,965,840.92",
-    "ZAR 17.31"
+    "ZAR 771,510.86",
+    "ZAR 115,726.67",
+    "ZAR 887,237.53",
+    "ZAR 17.92"
   ]
 }
 
 --- flat text sample (12000 chars) ---
-For questions about this invoice please email collections@google.com Page 1 of 2 Invoice Invoice number: 5455503524 .............................................................. 5455503524 .............................................................. 31 Dec 2025 .............................................................. Net 30 .............................................................. 2282-5888-4233 Details Invoice number Invoice date Payment terms Billing ID US$286,773.46 Due 30 Jan 2026 Display and Video 360 Total amount due in USD US$249,368.23 US$37,405.23 US$286,773.46 ZAR 4,318,122.61 ZAR 647,718.31 ZAR 4,965,840.92 Summary for 1 Dec 2025 - 31 Dec 2025 Pay in USD: Subtotal in USD VAT (15%) Total amount due in USD For reference in ZAR: Subtotal in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.31625 Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 4680265651 Bill to Celeste Jacobs MMS Communications South Africa (Pty) Ltd 10 Muswell Road, Building 1, Ground Floor, South Wing Silver Stream Business Park, Bryanston Johannesburg 2194 South Africa To pay by bank transfer, send to: Account holder name: Google Ireland Limited Bank: Citibank IBAN: GB37CITI18500811074911 SWIFT BIC: CITIGB2L Account no.: 11074911 Bank branch address: Citibank, N.A. London Branch Citigroup Centre Canada Square Canary Wharf LONDON E14 5LB UK *Remittance instructions: To help ensure that your payments are matched correctly and on time, include invoice numbers when making your payment. If you're paying for multiple invoices, email collections@google.com and include your company name, total payment amount, invoice numbers and respective amounts for each invoice. Send your payments only to the bank account listed on this invoice. -- 1 of 2 -- Invoice Invoice number: 5455503524 Page 2 of 2 US$249,368.23 US$37,405.23 US$286,773.46 Subtotal in USD VAT (15%) Total in USD Advertiser Id:1610899 1 Dec 2025 - 31 Dec 2025 Description Quantity UOM Amount(US$) Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Dis ney + ID: 1024305714 1 EA 97,339.31 Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Dis ney + ID: 1024305714 1 EA 3,114.85 Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Spotify PG ID: 1024306686 1 EA 123,579.56 Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~ DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_ DE~Vis a_IO~Spotify PG ID: 1024306686 1 EA 3,954.54 Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PREF-DDC-DM-OLYW-MiCo-Digit al-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC~B2C_PCB~PREF_PM~XBS _DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XL TG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404 1 EA 18,387.34 Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PREF-DDC-DM-OLYW-MiCo-Digit al-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC~B2C_PCB~PREF_PM~XBS _DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XL TG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404 1 EA 1,562.87 Third-party Fees - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PRE F-DDC-DM-OLYW-MiCo-Digital-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC ~B2C_PCB~PREF_PM~XBS_DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XLTG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404 1 EA 1,429.76 -- 2 of 2 -- 
+For questions about this debit memo please email collections@google.com Page 1 of 2 Invoice Invoice number: 5466175670 .............................................................. 5466175670 .............................................................. 5 Jan 2026 .............................................................. Net 30 .............................................................. 2282-5888-4233 Details Invoice number Invoice date Payment terms Billing ID Replaced invoice numbers 5361055203 US$49,490.31 Due 4 Feb 2026 Display and Video 360 Total amount due in USD US$43,035.05 US$6,455.26 US$49,490.31 ZAR 771,510.86 ZAR 115,726.67 ZAR 887,237.53 Summary for 1 Aug 2025 - 31 Aug 2025 Pay in USD: Subtotal in USD VAT (15%) Total amount due in USD For reference in ZAR: Subtotal in ZAR VAT (15%) Total in ZAR Exchange rate USD 1 : ZAR 17.9275 Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 4680265651 Bill to Celeste Jacobs MMS Communications South Africa (Pty) Ltd 10 Muswell Road, Building 1, Ground Floor, South Wing Silver Stream Business Park, Bryanston Johannesburg 2194 South Africa To pay by bank transfer, send to: Account holder name: Google Ireland Limited Bank: Citibank IBAN: GB37CITI18500811074911 SWIFT BIC: CITIGB2L Account no.: 11074911 Bank branch address: Citibank, N.A. London Branch Citigroup Centre Canada Square Canary Wharf LONDON E14 5LB UK *Remittance instructions: To help ensure that your payments are matched correctly and on time, include invoice numbers when making your payment. If you're paying for multiple invoices, email collections@google.com and include your company name, total payment amount, invoice numbers and respective amounts for each invoice. Send your payments only to the bank account listed on this invoice. -- 1 of 2 -- Invoice Invoice number: 5466175670 Page 2 of 2 US$43,035.05 US$6,455.26 US$49,490.31 Subtotal in USD VAT (15%) Total in USD Partner Id:1412043312 1 Aug 2025 - 31 Aug 2025 Description Quantity UOM Amount(US$) Description: Media Cost Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order: 1022296715 38,775.28 Description: Platform Fee Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order: 1022296715 3,295.90 Description: Total cost (data cost, platform add-on fee, third-party data) Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order: 1022296715 963.87 -- 2 of 2 -- 
 
 --- raw PDF text sample (8000 chars) ---
-For questions about this invoice please email collections@google.com 	Page 1 of 2
+For questions about this debit memo please email collections@google.com 	Page 1 of 2
 Invoice
-Invoice number: 5455503524
-..............................................................	5455503524
-..............................................................	31 Dec 2025
+Invoice number: 5466175670
+..............................................................	5466175670
+..............................................................	5 Jan 2026
 ..............................................................	Net 30
 ..............................................................	2282-5888-4233
 Details
@@ -67,17 +67,19 @@ Invoice number
 Invoice date
 Payment terms
 Billing ID
-US$286,773.46
-Due 30 Jan 2026
+Replaced invoice numbers
+5361055203
+US$49,490.31
+Due 4 Feb 2026
 Display and Video 360
 Total amount due in USD
-US$249,368.23
-US$37,405.23
-US$286,773.46
-ZAR 4,318,122.61
-ZAR 647,718.31
-ZAR 4,965,840.92
-Summary for 1 Dec 2025 - 31 Dec 2025
+US$43,035.05
+US$6,455.26
+US$49,490.31
+ZAR 771,510.86
+ZAR 115,726.67
+ZAR 887,237.53
+Summary for 1 Aug 2025 - 31 Aug 2025
 Pay in USD:
 Subtotal in USD
 VAT (15%)
@@ -86,7 +88,7 @@ For reference in ZAR:
 Subtotal in ZAR
 VAT (15%)
 Total in ZAR
-Exchange rate USD 1 : ZAR 17.31625
+Exchange rate USD 1 : ZAR 17.9275
 Google Ireland Limited
 Gordon House
 Barrow Street
@@ -122,60 +124,23 @@ invoice.
 
 -- 1 of 2 --
 
-Invoice 	Invoice number: 5455503524
+Invoice 	Invoice number: 5466175670
 Page 2 of 2
-US$249,368.23
-US$37,405.23
-US$286,773.46
+US$43,035.05
+US$6,455.26
+US$49,490.31
 Subtotal in USD
 VAT (15%)
 Total in USD
-Advertiser Id:1610899
-1 Dec 2025 - 31 Dec 2025
-Description 	Quantity UOM Amount(US$)
-Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV
-ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M
-S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~
-DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_
-DE~Vis a_IO~Dis ney + ID: 1024305714
-1 EA 	97,339.31
-Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV
-ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M
-S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~
-DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_
-DE~Vis a_IO~Dis ney + ID: 1024305714
-1 EA 	3,114.85
-Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV
-ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M
-S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~
-DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_
-DE~Vis a_IO~Spotify PG ID: 1024306686
-1 EA 	123,579.56
-Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV
-ID: 1610899 – Campaign: MK~DE_CN~FY26 Germany CM B2C XBS DSN Disney Prog_FS~M
-S_YQ~FY26Q1_CP~P99999_MT~161079569_AC~B2C_PCB~PREF_PM~XBS_DN~DM_SP~
-DSN_MN~DSN_U1~na_U2~na_U3~na ID: 56311137 – Insertion order: O-5XH7C-R1~YR~26_
-DE~Vis a_IO~Spotify PG ID: 1024306686
-1 EA 	3,954.54
-Media Cost - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV
-ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PREF-DDC-DM-OLYW-MiCo-Digit
-al-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC~B2C_PCB~PREF_PM~XBS
-_DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XL
-TG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404
-1 EA 	18,387.34
-Platform Fee - Partner: Visa c/o Starcom ID: 963349 – Advertiser: Visa_DE_Brand/Other_SMV
-ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PREF-DDC-DM-OLYW-MiCo-Digit
-al-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC~B2C_PCB~PREF_PM~XBS
-_DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID: 56282697 – Insertion order: O-5XL
-TG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID: 1023925404
-1 EA 	1,562.87
-Third-party Fees - Partner: Visa c/o Starcom ID: 963349 – Advertiser:
-Visa_DE_Brand/Other_SMV ID: 1610899 – Campaign: MK~DE_CN~FY26-DE-COR-B2C-PRE
-F-DDC-DM-OLYW-MiCo-Digital-global_FS~COR_YQ~FY26Q1_CP~tbd_MT~1068892703_AC
-~B2C_PCB~PREF_PM~XBS_DN~DM_SP~OLYW_MN~VCM_U1~na_U2~na_U3~na ID:
-56282697 – Insertion order: O-5XLTG-R1~YR~26_AN~Vis a_IO~Vis a EU PMP_Display ID:
-1023925404
-1 EA 	1,429.76
+Partner Id:1412043312
+1 Aug 2025 - 31 Aug 2025
+Description 	Quantity UOM 	Amount(US$)
+Description: Media Cost Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order:
+1022296715 38,775.28
+Description: Platform Fee Partner: 1412043312; Advertiser: 1466626007; Campaign: 55966970; Insertion Order:
+1022296715 3,295.90
+Description: Total cost (data cost, platform add-on fee, third-party data) Partner: 1412043312; Advertiser:
+1466626007; Campaign: 55966970; Insertion Order: 1022296715 963.87
 
 -- 2 of 2 --
 

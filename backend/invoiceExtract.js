@@ -404,6 +404,254 @@ function isIpointDocument(flat) {
   return /\bipoint\b/i.test(flat) && /\bmedia\b/i.test(flat);
 }
 
+/** SABC statements and tax invoices (Radio/TV/Digital Media sales). */
+function isSabcDocument(flat) {
+  const f = String(flat || "");
+  if (/\bSABC\s+SOC\s+LIMITED\b/i.test(f)) return true;
+  if (
+    /SOUTH\s+AFRICAN\s+BROADCASTING\s+CORPORATION\s*\(\s*SOC\s*\)\s+LIMITED/i.test(
+      f,
+    )
+  )
+    return true;
+  return false;
+}
+
+/** Combined PDFs: account statement pages (“STATEMENT FOR …”) plus tax invoices / remittance. */
+export function isSabcAccountStatement(flat) {
+  const f = String(flat || "");
+  if (!isSabcDocument(f)) return false;
+  if (!/\bSTATEMENT\s+FOR\b/i.test(f)) return false;
+  return true;
+}
+
+function parseSabcSignedMoneyToken(amountPart, minusSuffix) {
+  let v = parseFloat(String(amountPart || "").replace(/,/g, ""));
+  if (Number.isNaN(v)) return NaN;
+  if (minusSuffix === "-") v = -v;
+  return v;
+}
+
+/**
+ * Parse {@link MONTHS} date like 31-Dec-2025 from SABC statement headers.
+ */
+function parseSabcStatementDdMmmYyyy(s) {
+  const m = String(s || "")
+    .trim()
+    .match(/^(\d{2})-([A-Za-z]{3})[a-z]*-(\d{4})$/i);
+  if (!m) return null;
+  const d = parseInt(m[1], 10);
+  const mi = MONTHS.findIndex((x) =>
+    m[2].toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+  );
+  const y = parseInt(m[3], 10);
+  if (mi < 0 || d < 1 || d > 31) return null;
+  const dt = new Date(y, mi, d);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+/**
+ * Activity rows under “Invoice Ref:” — running balance is the last signed money token in the
+ * segment for that ref. The segment runs until the next “Invoice Ref:” **or** “Clearing Doc:”
+ * (whichever comes first). Without the Clearing Doc cut-off, lines that settle *other* document
+ * numbers (payments → 0.00) were incorrectly appended to the previous invoice block, making the
+ * last token 0.00 and dropping open invoices such as 90635405.
+ *
+ * @param {string} normalizedPlainText raw or normalized PDF text
+ * @returns {{ invoiceNo: string, balance: number }[]}
+ */
+export function parseSabcStatementOutstandingInvoiceLines(normalizedPlainText) {
+  const flat = normalizePdfPlainText(normalizedPlainText).replace(/\s+/g, " ");
+  const matches = [...flat.matchAll(/Invoice Ref:\s*(\d{8})\b/gi)];
+  const out = [];
+
+  for (let k = 0; k < matches.length; k++) {
+    const invoiceNo = matches[k][1];
+    const start = matches[k].index;
+    const afterLabel = start + matches[k][0].length;
+
+    let endExclusive = flat.length;
+    if (k + 1 < matches.length) endExclusive = matches[k + 1].index;
+
+    const clearIdx = flat.indexOf("Clearing Doc:", afterLabel);
+    if (clearIdx >= 0 && clearIdx < endExclusive) endExclusive = clearIdx;
+
+    const segment = flat.slice(start, endExclusive);
+    const moneyRe = /([\d,]+\.\d{2})(-)?/g;
+    const values = [];
+    let mm;
+    while ((mm = moneyRe.exec(segment)) !== null) {
+      const v = parseSabcSignedMoneyToken(mm[1], mm[2]);
+      if (!Number.isNaN(v)) values.push(v);
+    }
+    if (values.length === 0) continue;
+    const balance = values[values.length - 1];
+    if (balance > 0.01) {
+      out.push({ invoiceNo, balance });
+    }
+  }
+  return out;
+}
+
+/** SABC tax invoice grid uses DOCUMENT DATE: DD.MM.YYYY */
+function parseSabcTaxInvoiceDateDdMmYyyy(s) {
+  const m = String(s || "")
+    .trim()
+    .match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!m) return null;
+  const d = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10) - 1;
+  const y = parseInt(m[3], 10);
+  const dt = new Date(y, mo, d);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+/**
+ * One embedded TAX INVOICE block (flat text segment starting at DOCUMENT NR.).
+ * @returns {{ documentNo: string, clientName: string, brandName: string, bookingOrderNo: string, campCampaignNo: string, campaignName: string, dateDocumentIssued: string } | null}
+ */
+function extractSabcTaxInvoiceFieldsFromFlatSegment(segment) {
+  const flat = String(segment || "").replace(/\s+/g, " ");
+  const docM = flat.match(/\bDOCUMENT\s+NR\.?\s*[:\s]*(\d{8})\b/i);
+  if (!docM) return null;
+  const documentNo = docM[1];
+
+  let dateDocumentIssued = "";
+  const datePart = matchFirst(flat, [
+    /\bDOCUMENT\s+DATE\s*[:\s]*(\d{2}\.\d{2}\.\d{4})/i,
+  ]);
+  if (datePart) {
+    const dt = parseSabcTaxInvoiceDateDdMmYyyy(datePart);
+    if (dt) dateDocumentIssued = formatDocDate(dt);
+  }
+
+  let clientName = "";
+  const advM = flat.match(
+    /\bADVERTISER\s+NAME\s*[:\s]*(.+?)(?=\s+PRODUCT\s*[:\s]|\s+PERIOD\s*[:\s]|\s+PAGE\s*[:\s]|\bPlatform\b|\s+SABC\s+\d+\s+|$)/i,
+  );
+  if (advM) clientName = cleanLabelValue(advM[1]).slice(0, 200);
+
+  let brandName = "";
+  const prodM = flat.match(
+    /\bPRODUCT\s*[:\s]*(.+?)(?=\s+PERIOD\s*[:\s]|\s+PAGE\s*[:\s]|\bPlatform\b|Currency:|Total\s|VAT\s+\d|$)/i,
+  );
+  if (prodM) brandName = cleanLabelValue(prodM[1]).slice(0, 200);
+
+  let bookingOrderNo = "";
+  let campCampaignNo = "";
+  let campaignName = "";
+  /**
+   * CUSTOMER REF must run until the numeric advertiser code line (`ADVERTISER: 182259`), not the
+   * label `ADVERTISER NAME:` — stopping at the first `ADVERTISER` truncated `BO: … / 1` before the code line.
+   */
+  const refM = flat.match(
+    /\bCUSTOMER\s+REF\.?\s*[:\s]*(.*?)(?=\s+ADVERTISER\s*[:\s]\s*\d{1,8}\b)/i,
+  );
+  if (refM) {
+    const raw = cleanLabelValue(refM[1]);
+    const hasBo = /\bBO\b/i.test(raw);
+    const hasCapCamp =
+      /^CAP\d+/i.test(raw.trim()) ||
+      /\bCAP\d+/i.test(raw) ||
+      (!hasBo && /\bCAP\b/i.test(raw)) ||
+      /\bCAMP\b/i.test(raw) ||
+      /\bCAMP\d+/i.test(raw) ||
+      /^CAMP/i.test(raw.trim());
+
+    if (hasBo) {
+      let boM = raw.match(/\bBO\s*[:\s]*([0-9]+\s*\/\s*[0-9]+)/i);
+      if (!boM) boM = raw.match(/\bBO\s*[:\s]*([0-9]{7,14})\b/i);
+      if (boM)
+        bookingOrderNo = String(boM[1]).replace(/\s+/g, " ").trim().slice(0, 48);
+    } else if (hasCapCamp) {
+      campCampaignNo = raw.replace(/\s+/g, " ").trim().slice(0, 64);
+    } else if (raw) {
+      campaignName = raw.replace(/\s+/g, " ").trim().slice(0, 200);
+    }
+  }
+  if (!bookingOrderNo && /\bBO\b/i.test(flat)) {
+    const boSeg = flat.match(
+      /\bBO\s*[:\s]*([0-9]{7,12}\s*\/\s*\d+|[0-9]{7,14})\b/i,
+    );
+    if (boSeg)
+      bookingOrderNo = String(boSeg[1]).replace(/\s+/g, " ").trim().slice(0, 48);
+  }
+  /**
+   * Some PDFs place the booking suffix on the advertiser code line: `ADVERTISER: 182259 / 1`
+   * (not adjacent to `BO:`). Also recover `0000184966 / 1` when it appears as one token later.
+   */
+  if (bookingOrderNo && !/\//.test(bookingOrderNo)) {
+    const digits = bookingOrderNo.replace(/\D/g, "");
+    const advSlash = flat.match(
+      /\bADVERTISER\s*[:\s]*[0-9]{4,8}\s*\/\s*([0-9]+)\b/,
+    );
+    if (advSlash) {
+      bookingOrderNo = `${bookingOrderNo} / ${advSlash[1]}`
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 48);
+    } else if (digits.length >= 7) {
+      const rs = flat.match(
+        new RegExp("\\b" + digits + "\\s*\\/\\s*\\d+\\b"),
+      );
+      if (rs)
+        bookingOrderNo = rs[0].replace(/\s+/g, " ").trim().slice(0, 48);
+    }
+  }
+
+  return {
+    documentNo,
+    clientName,
+    brandName,
+    bookingOrderNo,
+    campCampaignNo,
+    campaignName,
+    dateDocumentIssued,
+  };
+}
+
+function scoreSabcEmbeddedDetail(d) {
+  let n = 0;
+  if (d.clientName) n += 2;
+  if (d.brandName) n += 2;
+  if (d.bookingOrderNo) n += 1;
+  if (d.campCampaignNo) n += 1;
+  if (d.campaignName) n += 1;
+  if (d.dateDocumentIssued) n += 1;
+  return n;
+}
+
+/**
+ * SABC often bundles an account statement with full Tax Invoice pages in one PDF.
+ * Maps 8-digit DOCUMENT NR. → advertiser (client), PRODUCT (brand), CUSTOMER REF → BO / CAP·CAMP / Campaign.
+ *
+ * @param {string} normalizedPlainText raw PDF text
+ * @returns {Map<string, { documentNo: string, clientName: string, brandName: string, bookingOrderNo: string, campCampaignNo: string, campaignName: string, dateDocumentIssued: string }>}
+ */
+export function parseSabcEmbeddedTaxInvoiceDetails(normalizedPlainText) {
+  const flat = normalizePdfPlainText(normalizedPlainText).replace(/\s+/g, " ");
+  if (!/\bTAX\s+INVOICE\b/i.test(flat)) return new Map();
+  const re = /\bDOCUMENT\s+NR\.?\s*[:\s]*(\d{8})\b/gi;
+  const matches = [...flat.matchAll(re)];
+  if (!matches.length) return new Map();
+
+  const map = new Map();
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index ?? 0;
+    const end =
+      i + 1 < matches.length ? matches[i + 1].index ?? flat.length : flat.length;
+    const segment = flat.slice(start, end);
+    const detail = extractSabcTaxInvoiceFieldsFromFlatSegment(segment);
+    if (!detail || !detail.documentNo) continue;
+    const key = detail.documentNo;
+    const prev = map.get(key);
+    if (!prev || scoreSabcEmbeddedDetail(detail) > scoreSabcEmbeddedDetail(prev)) {
+      map.set(key, detail);
+    }
+  }
+  return map;
+}
+
 /** DStv Media Sales tax invoices — grid labels INVOICE NO., INVOICE DATE (M/D/Y), footer Gross/Net/VAT/Total Inv. Amount */
 function isDstvMediaSalesDocument(flat) {
   if (/\bDStv\s+Media\s+Sales\b/i.test(flat)) return true;
@@ -1284,6 +1532,12 @@ export function extractStatementInvoiceReferences(normalizedPlainText) {
   while ((lm = loose.exec(flat))) {
     refs.add(lm[0].toUpperCase());
   }
+  /** SABC: 8-digit document numbers with positive outstanding balance on statement activity */
+  if (isSabcAccountStatement(flat)) {
+    for (const row of parseSabcStatementOutstandingInvoiceLines(normalizedPlainText)) {
+      if (row.invoiceNo) refs.add(String(row.invoiceNo));
+    }
+  }
   return [...refs];
 }
 
@@ -2057,6 +2311,263 @@ export function formatGoogleDebuggerTxt(snapshot, meta = {}) {
   return out.join("\n");
 }
 
+/** Meta / Facebook billing (Ireland entity, ZAR footer, Advertiser + BILL TO). */
+function isMetaPlatformsIrelandInvoiceDocument(flat) {
+  const f = String(flat || "");
+  if (!/\bMeta\s+Platforms\s+Ireland\b/i.test(f)) return false;
+  if (!/\bInvoice\s*#\s*[:\s]*\d{8,12}\b/i.test(f)) return false;
+  return /\bBILL\s*TO\s*:/i.test(f) && /\bAdvertiser\s*:/i.test(f);
+}
+
+function extractMetaPlatformsIrelandLineBrands(flat) {
+  const brands = new Set();
+  /** Segment between 1st and 2nd "_" in CHC_* campaign codes (allows PDF line breaks inside token). */
+  const re = /CHC_([A-Za-z0-9-]+(?:\s+[A-Za-z0-9-]+)*)_/g;
+  let m;
+  while ((m = re.exec(flat)) !== null) {
+    const b = m[1].replace(/\s+/g, "").trim();
+    if (b.length >= 3) brands.add(b);
+  }
+  return [...brands].sort((a, b) => a.localeCompare(b));
+}
+
+/** Regex fragment: Meta IO refs for current and prior calendar year (9–11 digits total). */
+function metaInvoiceIoPoInlineYearRegexFragment() {
+  const y = new Date().getFullYear();
+  const y1 = String(y);
+  const y2 = String(y - 1);
+  return `(?:${y1}|${y2})\\d{5,7}`;
+}
+
+/**
+ * "DCP-Commercial_Back to School_ZA_…_2025120092_OSB…" — brand is between 1st and 2nd "_"
+ * in the same underscore-key blob that also contains an IO-style PO.
+ */
+function extractMetaPlatformsIrelandDcpUnderscoreBrands(flat) {
+  const brands = new Set();
+  const poFrag = metaInvoiceIoPoInlineYearRegexFragment();
+  const re = new RegExp(
+    `([A-Za-z0-9][A-Za-z0-9.-]{0,80})_([^_]{1,120})_[\\s\\S]{0,1500}?(${poFrag})(?![0-9])`,
+    "g",
+  );
+  let m;
+  while ((m = re.exec(flat)) !== null) {
+    let b = m[2].trim().replace(/\s+/g, " ");
+    if (b.length < 2) continue;
+    if (/^\d+$/.test(b)) continue;
+    brands.add(b);
+  }
+  return [...brands].sort((a, b) => a.localeCompare(b));
+}
+
+function extractMetaPlatformsIrelandCapTokens(flat) {
+  const caps = new Set();
+  const re = /\b(CAP\d+)\b/gi;
+  let m;
+  while ((m = re.exec(flat)) !== null) {
+    caps.add(String(m[1]).toUpperCase());
+  }
+  return [...caps].sort((a, b) => {
+    const na = parseInt(a.replace(/\D/g, ""), 10);
+    const nb = parseInt(b.replace(/\D/g, ""), 10);
+    return na - nb || a.localeCompare(b);
+  });
+}
+
+function extractMetaPlatformsIrelandPoTokens(flat) {
+  const pos = new Set();
+  /** 9–11 digit IO refs (current/prior year); \b misses "_2025120092_" because _ and digits are both \\w. */
+  const poFrag = metaInvoiceIoPoInlineYearRegexFragment();
+  const re = new RegExp(`(?:^|[^0-9])(${poFrag})(?![0-9])`, "g");
+  let m;
+  while ((m = re.exec(flat)) !== null) {
+    const d = m[1];
+    if (d.length >= 9 && d.length <= 11) pos.add(d);
+  }
+  return [...pos].sort();
+}
+
+/**
+ * Meta line layout: "BD~…_CN~…_…_FF~CAP…_…" (segment after PREFIX~ until next "_").
+ * Collect unique values per prefix when the same invoice has multiple description rows.
+ */
+function extractMetaPlatformsIrelandTildeSegmentValues(flat, prefix) {
+  const out = new Set();
+  /** After "_" prefix "CN~" / "FF~" must match — \b fails before C in "_CN~" (underscore is \w). */
+  const re = new RegExp(`(?:^|[\\s_])${prefix}~([^_]+)`, "g");
+  let m;
+  while ((m = re.exec(flat)) !== null) {
+    const v = String(m[1] || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    if (v.length) out.add(v);
+  }
+  return [...out];
+}
+
+function sortMetaCapLikeTokens(tokens) {
+  return [...tokens].sort((a, b) => {
+    const na = parseInt(String(a).replace(/\D/g, ""), 10);
+    const nb = parseInt(String(b).replace(/\D/g, ""), 10);
+    return (
+      (Number.isNaN(na) ? 0 : na) - (Number.isNaN(nb) ? 0 : nb) ||
+      String(a).localeCompare(String(b))
+    );
+  });
+}
+
+/**
+ * When CAP~/IO~ "Absa" layout is present, FF~ is usually booking (e.g. C00028191); legacy rows may still
+ * use FF~CAPnnnn — send those to camp/CAP instead of booking.
+ */
+function partitionMetaFfTildeForCampVsBooking(ffSegments, absaStyleDoc) {
+  const forCamp = [];
+  const forBooking = [];
+  for (const s of ffSegments) {
+    const t = String(s || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    if (!t.length) continue;
+    if (!absaStyleDoc) {
+      forCamp.push(t.toUpperCase());
+      continue;
+    }
+    if (/^CAP\d+$/i.test(t)) forCamp.push(t.toUpperCase());
+    else forBooking.push(t);
+  }
+  return { forCamp, forBooking };
+}
+
+function extractMetaPlatformsIrelandInvoiceFields(_text, flat) {
+  const documentNo =
+    matchFirst(flat, [/\bInvoice\s*#\s*[:\s]*(\d{8,12})\b/i]) || "";
+
+  let dateDocumentIssued = "";
+  const idate = flat.match(
+    /\bInvoice\s+Date\s*[:\s]*(\d{1,2})[\s\-/]([A-Za-z]{3})[a-z]*[\s\-/](\d{4})\b/i,
+  );
+  if (idate) {
+    const d = parseInt(idate[1], 10);
+    const monthStr = idate[2];
+    const y = parseInt(idate[3], 10);
+    const mi = MONTHS.findIndex((x) =>
+      monthStr.toLowerCase().startsWith(x.toLowerCase().slice(0, 3)),
+    );
+    if (mi >= 0 && d >= 1 && d <= 31 && !Number.isNaN(y)) {
+      const dt = new Date(y, mi, d);
+      if (!Number.isNaN(dt.getTime())) dateDocumentIssued = formatDocDate(dt);
+    }
+  }
+
+  const subtotal = matchFirst(flat, [/\bSubtotal\s*[:\s]*([\d,]+\.\d{2})\b/i]);
+  const vatLine = matchFirst(flat, [
+    /\bVAT\s*@\s*[\d.]+%\s*[:\s]*([\d,]+\.\d{2})\b/i,
+  ]);
+  const invTotal = matchFirst(flat, [/\bInvoice\s+Total\s*[:\s]*([\d,]+\.\d{2})\b/i]);
+
+  let grossAmount = parseAmount(subtotal);
+  let netAmount = grossAmount;
+  let vatAmount = parseAmount(vatLine);
+  let totalAmount = parseAmount(invTotal);
+
+  const supplierName = "Meta Platforms Ireland Limited";
+
+  const clientName = cleanLabelValue(
+    matchFirst(flat, [/\bAdvertiser\s*[:\s]*(.+?)(?=\s+PO\s+Number|\s+Line#|$)/i]),
+  );
+
+  const brandsChc = extractMetaPlatformsIrelandLineBrands(flat);
+  const brandsDcp = extractMetaPlatformsIrelandDcpUnderscoreBrands(flat);
+  const brandSet = new Set([...brandsChc, ...brandsDcp]);
+  const brandName = brandSet.size
+    ? [...brandSet].sort((a, b) => a.localeCompare(b)).join(", ")
+    : "";
+
+  const caps = extractMetaPlatformsIrelandCapTokens(flat);
+  const pos = extractMetaPlatformsIrelandPoTokens(flat);
+
+  const tildePo = extractMetaPlatformsIrelandTildeSegmentValues(flat, "BD");
+  const tildeCampaign = extractMetaPlatformsIrelandTildeSegmentValues(flat, "CN");
+  const tildeFfRaw = extractMetaPlatformsIrelandTildeSegmentValues(flat, "FF");
+  const tildeCapCap = extractMetaPlatformsIrelandTildeSegmentValues(flat, "CAP");
+  const tildeIoPo = extractMetaPlatformsIrelandTildeSegmentValues(flat, "IO");
+
+  /** CAP~/IO~ layout: CAP~ → camp, IO~ → PO, FF~ → booking (unless FF~CAPnnnn legacy). */
+  const primaryCapIoStyle =
+    /(?:^|[\s_])CAP~/.test(flat) || /(?:^|[\s_])IO~/.test(flat);
+
+  const { forCamp: ffCampParts, forBooking: ffBookingParts } =
+    partitionMetaFfTildeForCampVsBooking(tildeFfRaw, primaryCapIoStyle);
+
+  const tildeFfCapLegacy = sortMetaCapLikeTokens(ffCampParts);
+
+  /** Tilde-tagged line layout (e.g. BD~PO_CN~campaign_…_FF~CAP…); anchor on BD~ or CN~+FF~ pair. */
+  const useTildeLineTags =
+    /(?:^|[\s_])BD~/.test(flat) ||
+    (tildeCampaign.length > 0 && tildeFfRaw.length > 0);
+
+  let campCampaignNo = "";
+  if (primaryCapIoStyle) {
+    const campSet = new Set([...tildeCapCap, ...ffCampParts.map((s) => String(s))]);
+    const merged = [...campSet].filter(Boolean);
+    merged.sort((a, b) => String(a).localeCompare(String(b)));
+    campCampaignNo = merged.length
+      ? merged.join(", ")
+      : caps.length
+        ? caps.join(", ")
+        : "";
+  } else if (useTildeLineTags) {
+    campCampaignNo = tildeFfCapLegacy.length
+      ? tildeFfCapLegacy.join(", ")
+      : caps.length
+        ? caps.join(", ")
+        : "";
+  } else {
+    campCampaignNo = caps.length ? caps.join(", ") : "";
+  }
+
+  const poSet = new Set();
+  pos.forEach((p) => poSet.add(p));
+  if (primaryCapIoStyle) tildeIoPo.forEach((p) => poSet.add(p));
+  if (useTildeLineTags) tildePo.forEach((p) => poSet.add(p));
+  const purchaseOrderNumber = poSet.size ? [...poSet].sort() : [];
+
+  const billingPeriod = matchFirst(flat, [/\bBilling\s+Period\s*[:\s]*([A-Za-z0-9\-]+)/i]);
+  const campaignName = useTildeLineTags
+    ? tildeCampaign.length
+      ? tildeCampaign.map((s) => cleanLabelValue(s)).filter(Boolean).join(", ")
+      : billingPeriod
+        ? cleanLabelValue(billingPeriod)
+        : ""
+    : billingPeriod
+      ? cleanLabelValue(billingPeriod)
+      : "";
+
+  const bookingOrderNo =
+    primaryCapIoStyle && ffBookingParts.length
+      ? ffBookingParts.join(", ")
+      : "";
+
+  return {
+    dateDocumentIssued,
+    documentType: "Invoice",
+    documentNo,
+    grossAmount: grossAmount || "",
+    netAmount: netAmount || "",
+    vatAmount: vatAmount || "",
+    totalAmount: totalAmount || "",
+    supplierName,
+    clientName: clientName || "",
+    brandName: brandName || "",
+    campaignName: campaignName || "",
+    campCampaignNo,
+    bookingOrderNo,
+    contractNumber: "",
+    purchaseOrderNumber: purchaseOrderNumber.length ? purchaseOrderNumber.join(", ") : "",
+    statementInvoiceRefs: [],
+  };
+}
+
 /**
  * @param {string} rawText
  * @returns {Record<string, string>}
@@ -2078,8 +2589,15 @@ export function extractInvoiceFields(rawText) {
     return extractGoogleInvoiceFields(text, flat, lines);
   }
 
+  if (isMetaPlatformsIrelandInvoiceDocument(flat)) {
+    return extractMetaPlatformsIrelandInvoiceFields(text, flat);
+  }
+
   let documentType = "";
   if (/statement\s*[-–]\s*activity/i.test(flat) || /\bSTATEMENT\b.*\bActivity\b/i.test(flat)) {
+    documentType = "Statement";
+  } else if (isSabcAccountStatement(flat)) {
+    /** Bundle includes many tax-invoice pages — classify from account statement header */
     documentType = "Statement";
   } else if (isDstvOrderConfirmationDocument(flat)) {
     documentType = "Order Confirmation";
@@ -2326,7 +2844,8 @@ export function extractInvoiceFields(rawText) {
 
   /** Supplier — branded marketing vendors */
   let supplierName = "";
-  if (/volt\.africa/i.test(flat)) supplierName = "Volt.Africa";
+  if (isSabcDocument(flat)) supplierName = "SABC";
+  else if (/volt\.africa/i.test(flat)) supplierName = "Volt.Africa";
   else if (/voltafrica/i.test(flat)) supplierName = "VOLTAfrica";
   else if (/food\s*(?:&|and)\s*beverage\s*reporter/i.test(flat)) {
     supplierName = "Food & Beverage Reporter (PTY) LTD";
@@ -2692,6 +3211,34 @@ export function extractInvoiceFields(rawText) {
   if (!documentNo) {
     const alt = flat.match(/\b([A-Z]{2}\d{5,9})\b/);
     if (alt) documentNo = alt[1];
+  }
+
+  if (isSabcAccountStatement(flat)) {
+    documentType = "Statement";
+    const cust = matchFirst(flat, [/Customer Number:\s*(\d{10})\b/i]);
+    if (cust) documentNo = cust;
+    const stmtDate = matchFirst(flat, [/Statement Date:\s*(\d{2}-[A-Za-z]{3}-\d{4})\b/i]);
+    if (stmtDate) {
+      const dt = parseSabcStatementDdMmmYyyy(stmtDate);
+      if (dt) dateDocumentIssued = formatDocDate(dt);
+    }
+    const co = matchFirst(flat, [
+      /\bCompany\s+([A-Za-z0-9\s&(),.'-]{8,90}?)(?=\s+\d{1,3}\s+[A-Z])/i,
+    ]);
+    if (co) clientName = cleanLabelValue(co);
+    const grand = matchFirst(flat, [
+      /\bGRAND TOTAL FOR\s+[A-Za-z0-9\s(),.]+\s+([\d,]+\.\d{2})\b/i,
+    ]);
+    if (grand) totalAmount = parseAmount(grand);
+    grossAmount = "";
+    netAmount = "";
+    vatAmount = "";
+    campaignName = "";
+    brandName = "";
+    /** Full-statement regex passes can pick BO/PO from any page (e.g. another invoice); not per line item. */
+    bookingOrderNo = "";
+    purchaseOrderNumber = "";
+    supplierName = "SABC";
   }
 
   const statementInvoiceRefs =

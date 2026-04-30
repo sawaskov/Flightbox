@@ -1,166 +1,123 @@
 === FILE ===
-C:\Users\Speccon Admin\OneDrive - Speccon Holdings (Pty) Ltd\Desktop\FlightBox\googleinvoice3.pdf
+C:\Users\Speccon Admin\OneDrive - Speccon Holdings (Pty) Ltd\Desktop\FlightBox\MetaInvoice.pdf
 
 === RAW TEXT (as returned by pdf-parse) ===
-For questions about this invoice please email collections@google.com 	Page 1 of 4
-Invoice
-Invoice number: 5485801183
-..............................................................	5485801183
-..............................................................	31 Jan 2026
-..............................................................	Net 30
-..............................................................	2282-5888-4233
-..............................................................	534-161-1903
-Details
-Invoice number
-Invoice date
-Payment terms
-Billing ID
-Account ID
-ZAR 105,012.63
-Due 2 Mar 2026
-Google Ads
-Total amount due in ZAR
-ZAR 91,315.33
-ZAR 13,697.30
-ZAR 105,012.63
-Summary for 1 Jan 2026 - 31 Jan 2026
-Pay in ZAR:
-Subtotal in ZAR
-VAT (15%)
-Total amount due in ZAR
-Google Ireland Limited
-Gordon House
-Barrow Street
-Dublin 4
+Meta Platforms Ireland Limited
+Merrion Road
+Dublin 4, D04 X2K5
 Ireland
-VAT number: 4680265651
-Bill to
-Celeste Jacobs
-MMS Communications South Africa (Pty) Ltd
-10 Muswell Road, Building 1, Ground Floor, South Wing
-Silver Stream Business Park, Bryanston
+VAT: 4480286055
+INVOICE
+Invoice #: 250677818
+Invoice Date: 01-Feb-2026
+Billing Period: Jan-26
+Account Id / Group: 107987453187092
+Payment Terms: NET 30
+BILL TO: MMS Communications SA (Pty) Ltd
+Building 11, Design Quarter Business
+District
+Lesley ave East Fourways
+JOHANNESBURG GAUTENG 2196
+SOUTH AFRICA
+Page:	1 of 1
+ATTN: Accounts Payable
+VAT: ZA4790103545
+Advertiser: Mondelez SA
+PO Number:
+Line# Description - Advertising Services Campaign Label Total
+INVOICE NUMBER MUST BE REFERENCED ON ALL PAYMENTS
+Remit Payment To: Bank Details:
+Meta Platforms Ireland Limited
+Merrion Road
+Dublin 4, D04 X2K5
+Ireland
+VAT: 4480286055
+Payment@fb.com
+Bank of America N.A.
+2 KING EDWARD STREET
+LONDON EC1A 1HQ
+United Kingdom
+Acct Name: Meta Platforms Ireland
+Limited
+Account Number IBAN: GB58 BOFA
+1650 5020 9110 63
+Account Number: 20911063
+Branch Code: 6008
+SWIFT Code: BOFAGB22
+Cover at:
+Absa Bank Limited
+15 Troye Street
 Johannesburg
-2194
+2001
 South Africa
-To pay by bank transfer, send to:
-Account holder name: Google Ireland Limited
-Bank: Citibank
-SWIFT BIC: CITIZAJX
-Branch code: 350005
-Account no.: 0201084008
-Bank branch address:
-Citigroup Corporate and Investment Banking
-145 West Street
-Sandton
-2196
-South Africa
-*Remittance instructions: To help ensure that your payments are matched correctly and on time, include invoice numbers when
-making your payment. If you're paying for multiple invoices, email collections@google.com and include your company name, total
-payment amount, invoice numbers and respective amounts for each invoice. Send your payments only to the bank account listed on this
-invoice.
+BIC Code: ABSAZAJJ
+Subtotal: 400,000.00
+Freight: 0.00
+VAT @15%: 60,000.00
+Invoice Total: 460,000.00
+Invoice Currency: ZAR
+www.facebook.com ar@meta.com
+1 CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_ALWAYSONSTD_CAP07041_ZA26CD21_ST
+D_CE_FB-IG_2025120074
+44,300.62
+2 CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_LUPES_CAP07042_ZA26CD17_STD_CE_FB
+-IG_2025120075
+74,780.11
+3 CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_LUPSTD_CAP07042_ZA26CD17_STD_CE_F
+B-IG_2025120075
+67,695.51
+4 CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINES2_CAP07040_ZA26CD08_STD
+_SNLS_FB-IG_2025120059
+74,237.14
+5 CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINESES_CAP07040_ZA26CD08_ST
+D_SNLS_FB-IG_2025120059
+110,933.87
+6 Instagram - CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_ALWAYSONSTD_CAP07041_ZA26CD21_ST
+D_CE_FB-IG_2025120074
+5,699.38
+7 Instagram - CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_LUPES_CAP07042_ZA26CD17_STD_CE_FB
+-IG_2025120075
+5,219.89
+8 Instagram - CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_LUPSTD_CAP07042_ZA26CD17_STD_CE_F
+B-IG_2025120075
+2,304.49
+9 Instagram - CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINES2_CAP07040_ZA26CD08_STD
+_SNLS_FB-IG_2025120059
+5,762.86
+10 Instagram - CHC_CADBURY-DAIRY-
+MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINESES_CAP07040_ZA26CD08_ST
+D_SNLS_FB-IG_2025120059
+9,066.13
 
--- 1 of 4 --
-
-Invoice 	Invoice number: 5485801183
-For questions about this invoice please email collections@google.com 	Page 2 of 4
-ZAR 105,012.63	Total in ZAR
-Summary of costs by account budget
-1 Jan 2026 - 31 Jan 2026
-Account
-ID Account 	Account budget 	Purchase Order 	Amount(ZAR)
-534-161-
-1903 Peugeot_ZA 202510009 R178560 + 2025100066
-R47616 +R29760 ext to 15 Jan
-202510009 R178560 + 2025100066
-R47616 +R29760 ext to 15 Jan 37,044.17
-534-161-
-1903 Peugeot_ZA 2026010050 R178560 + 2026010082
-R29760
-2026010050 R178560 + 2026010082
-R29760 67,968.46
-
--- 2 of 4 --
-
-Invoice 	Invoice number: 5485801183
-For questions about this invoice please email collections@google.com 	Page 3 of 4
-ZAR 32,212.32
-ZAR 4,831.85
-ZAR 37,044.17
-Subtotal in ZAR
-VAT (15%)
-Total in ZAR
-Account: Peugeot_ZA
-Account ID: 534-161-1903
-Account budget: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan
-Purchase order: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan
-1 Jan 2026 - 16 Jan 2026
-Description 	Quantity Units Amount(ZAR)
-BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
-H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 1217 Clicks 	10,501.43
-BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P
-SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 1758 Clicks 	10,499.44
-BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~
-Google Ads_FS~SA_ID~OSB0002OXD 222 Clicks 	4,461.72
-BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH
-~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 419 Clicks 	2,249.98
-BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
-D_FF~Google Ads_FS~SA_ID~OSB0002OQW 771 Clicks 	1,499.98
-BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
-H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 316 Clicks 	1,499.96
-BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
-D_FF~Google Ads_FS~SA_ID~OSB0002OQT 501 Clicks 	1,499.81
-
--- 3 of 4 --
-
-Invoice 	Invoice number: 5485801183
-For questions about this invoice please email collections@google.com 	Page 4 of 4
-ZAR 59,103.01
-ZAR 8,865.45
-ZAR 67,968.46
-Subtotal in ZAR
-VAT (15%)
-Total in ZAR
-Account: Peugeot_ZA
-Account ID: 534-161-1903
-Account budget: 2026010050 R178560 + 2026010082 R29760
-Purchase order: 2026010050 R178560 + 2026010082 R29760
-22 Jan 2026 - 31 Jan 2026
-Description 	Quantity Units Amount(ZAR)
-BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P
-SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 2988 Clicks 	27,622.69
-BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
-D_FF~Google Ads_FS~SA_ID~OSB0002OQW 1149 Clicks 	11,995.68
-BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS
-D_FF~Google Ads_FS~SA_ID~OSB0002OQT 498 Clicks 	9,903.87
-BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
-H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 477 Clicks 	5,534.25
-BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~
-Google Ads_FS~SA_ID~OSB0002OXD 41 Clicks 	1,440.00
-BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH
-~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 272 Clicks 	1,368.38
-BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C
-H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 279 Clicks 	1,238.14
-
--- 4 of 4 --
+-- 1 of 1 --
 
 
 
 === SINGLE-LINE FLAT ===
-For questions about this invoice please email collections@google.com Page 1 of 4 Invoice Invoice number: 5485801183 .............................................................. 5485801183 .............................................................. 31 Jan 2026 .............................................................. Net 30 .............................................................. 2282-5888-4233 .............................................................. 534-161-1903 Details Invoice number Invoice date Payment terms Billing ID Account ID ZAR 105,012.63 Due 2 Mar 2026 Google Ads Total amount due in ZAR ZAR 91,315.33 ZAR 13,697.30 ZAR 105,012.63 Summary for 1 Jan 2026 - 31 Jan 2026 Pay in ZAR: Subtotal in ZAR VAT (15%) Total amount due in ZAR Google Ireland Limited Gordon House Barrow Street Dublin 4 Ireland VAT number: 4680265651 Bill to Celeste Jacobs MMS Communications South Africa (Pty) Ltd 10 Muswell Road, Building 1, Ground Floor, South Wing Silver Stream Business Park, Bryanston Johannesburg 2194 South Africa To pay by bank transfer, send to: Account holder name: Google Ireland Limited Bank: Citibank SWIFT BIC: CITIZAJX Branch code: 350005 Account no.: 0201084008 Bank branch address: Citigroup Corporate and Investment Banking 145 West Street Sandton 2196 South Africa *Remittance instructions: To help ensure that your payments are matched correctly and on time, include invoice numbers when making your payment. If you're paying for multiple invoices, email collections@google.com and include your company name, total payment amount, invoice numbers and respective amounts for each invoice. Send your payments only to the bank account listed on this invoice. -- 1 of 4 -- Invoice Invoice number: 5485801183 For questions about this invoice please email collections@google.com Page 2 of 4 ZAR 105,012.63 Total in ZAR Summary of costs by account budget 1 Jan 2026 - 31 Jan 2026 Account ID Account Account budget Purchase Order Amount(ZAR) 534-161- 1903 Peugeot_ZA 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan 37,044.17 534-161- 1903 Peugeot_ZA 2026010050 R178560 + 2026010082 R29760 2026010050 R178560 + 2026010082 R29760 67,968.46 -- 2 of 4 -- Invoice Invoice number: 5485801183 For questions about this invoice please email collections@google.com Page 3 of 4 ZAR 32,212.32 ZAR 4,831.85 ZAR 37,044.17 Subtotal in ZAR VAT (15%) Total in ZAR Account: Peugeot_ZA Account ID: 534-161-1903 Account budget: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan Purchase order: 202510009 R178560 + 2025100066 R47616 +R29760 ext to 15 Jan 1 Jan 2026 - 16 Jan 2026 Description Quantity Units Amount(ZAR) BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 1217 Clicks 10,501.43 BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 1758 Clicks 10,499.44 BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~ Google Ads_FS~SA_ID~OSB0002OXD 222 Clicks 4,461.72 BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH ~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 419 Clicks 2,249.98 BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQW 771 Clicks 1,499.98 BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 316 Clicks 1,499.96 BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQT 501 Clicks 1,499.81 -- 3 of 4 -- Invoice Invoice number: 5485801183 For questions about this invoice please email collections@google.com Page 4 of 4 ZAR 59,103.01 ZAR 8,865.45 ZAR 67,968.46 Subtotal in ZAR VAT (15%) Total in ZAR Account: Peugeot_ZA Account ID: 534-161-1903 Account budget: 2026010050 R178560 + 2026010082 R29760 Purchase order: 2026010050 R178560 + 2026010082 R29760 22 Jan 2026 - 31 Jan 2026 Description Quantity Units Amount(ZAR) BD~2026010050_v2_CN~Peugeot Generic cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~P SC_FF~Google Ads_FS~SA_ID~OSB0002OR2 2988 Clicks 27,622.69 BD~2026010050_v2_CN~Peugeot Brand core_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQW 1149 Clicks 11,995.68 BD~2026010050_v2_CN~Peugeot Brand 2008_MK~ZA_MB~AP_CAT~VN_CX~BRN_CH~PS D_FF~Google Ads_FS~SA_ID~OSB0002OQT 498 Clicks 9,903.87 BD~2026010050_v2_CN~Peugeot Landtrek Generic _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWH 477 Clicks 5,534.25 BD~2025070062_CN~Peugeot Afters ales _MK~ZA_MB~AP_CAT~AP_CX~LN_CH~PSD_FF~ Google Ads_FS~SA_ID~OSB0002OXD 41 Clicks 1,440.00 BD~2026010050_v2_CN~Peugeot Brand Landtrek _MK~ZA_MB~AP_CAT~VN_CX~BRN_CH ~PSD_FF~Google Ads_FS~SA_ID~OSB0002OR1 272 Clicks 1,368.38 BD~2026010050_v2_CN~Peugeot Generic Suv cars _MK~ZA_MB~AP_CAT~VN_CX~BRN_C H~PSC_FF~Google Ads_FS~SA_ID~OSB0002OWJ 279 Clicks 1,238.14 -- 4 of 4 -- 
+Meta Platforms Ireland Limited Merrion Road Dublin 4, D04 X2K5 Ireland VAT: 4480286055 INVOICE Invoice #: 250677818 Invoice Date: 01-Feb-2026 Billing Period: Jan-26 Account Id / Group: 107987453187092 Payment Terms: NET 30 BILL TO: MMS Communications SA (Pty) Ltd Building 11, Design Quarter Business District Lesley ave East Fourways JOHANNESBURG GAUTENG 2196 SOUTH AFRICA Page: 1 of 1 ATTN: Accounts Payable VAT: ZA4790103545 Advertiser: Mondelez SA PO Number: Line# Description - Advertising Services Campaign Label Total INVOICE NUMBER MUST BE REFERENCED ON ALL PAYMENTS Remit Payment To: Bank Details: Meta Platforms Ireland Limited Merrion Road Dublin 4, D04 X2K5 Ireland VAT: 4480286055 Payment@fb.com Bank of America N.A. 2 KING EDWARD STREET LONDON EC1A 1HQ United Kingdom Acct Name: Meta Platforms Ireland Limited Account Number IBAN: GB58 BOFA 1650 5020 9110 63 Account Number: 20911063 Branch Code: 6008 SWIFT Code: BOFAGB22 Cover at: Absa Bank Limited 15 Troye Street Johannesburg 2001 South Africa BIC Code: ABSAZAJJ Subtotal: 400,000.00 Freight: 0.00 VAT @15%: 60,000.00 Invoice Total: 460,000.00 Invoice Currency: ZAR www.facebook.com ar@meta.com 1 CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_ALWAYSONSTD_CAP07041_ZA26CD21_ST D_CE_FB-IG_2025120074 44,300.62 2 CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_LUPES_CAP07042_ZA26CD17_STD_CE_FB -IG_2025120075 74,780.11 3 CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_LUPSTD_CAP07042_ZA26CD17_STD_CE_F B-IG_2025120075 67,695.51 4 CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINES2_CAP07040_ZA26CD08_STD _SNLS_FB-IG_2025120059 74,237.14 5 CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINESES_CAP07040_ZA26CD08_ST D_SNLS_FB-IG_2025120059 110,933.87 6 Instagram - CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_ALWAYSONSTD_CAP07041_ZA26CD21_ST D_CE_FB-IG_2025120074 5,699.38 7 Instagram - CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_LUPES_CAP07042_ZA26CD17_STD_CE_FB -IG_2025120075 5,219.89 8 Instagram - CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_LUPSTD_CAP07042_ZA26CD17_STD_CE_F B-IG_2025120075 2,304.49 9 Instagram - CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINES2_CAP07040_ZA26CD08_STD _SNLS_FB-IG_2025120059 5,762.86 10 Instagram - CHC_CADBURY-DAIRY- MILK_ZA_JANJAN_2026_ZAR_ENG_VALENTINESES_CAP07040_ZA26CD08_ST D_SNLS_FB-IG_2025120059 9,066.13 -- 1 of 1 -- 
 
 === extractInvoiceFields (same as Document details API) ===
 {
-  "dateDocumentIssued": "31-Jan-26",
+  "dateDocumentIssued": "01-Feb-26",
   "documentType": "Invoice",
-  "documentNo": "5485801183",
-  "grossAmount": "105,012.63",
-  "netAmount": "105,012.63",
-  "vatAmount": "0.00",
-  "totalAmount": "105,012.63",
-  "supplierName": "Google",
-  "clientName": "",
+  "documentNo": "MUST",
+  "grossAmount": "400,000.00",
+  "netAmount": "400,000.00",
+  "vatAmount": "60,000.00",
+  "totalAmount": "460,000.00",
+  "supplierName": "",
+  "clientName": "MMS Communications SA (Pty) Ltd Building 11, Design Quarter Business District Lesley ave East Fourways JOHANNESBURG GAUTENG 2196 SOUTH AFRICA Page: 1 of 1 ATTN: Accounts Payable",
   "brandName": "",
-  "campaignName": "",
+  "campaignName": "- Advertising Services Campaign Label Total INVOICE NUMBER MUST BE REFERENCED ON ALL PAYMENTS Remit Payment To: Bank Details: Meta Platforms Ireland Limited Merrion Road Dublin 4, ",
   "campCampaignNo": "",
   "bookingOrderNo": "",
   "contractNumber": "",

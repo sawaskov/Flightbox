@@ -19,6 +19,9 @@ import { ConfidentialClientApplication } from "@azure/msal-node";
 import { PDFParse } from "pdf-parse";
 import {
   extractInvoiceFields,
+  isSabcAccountStatement,
+  parseSabcEmbeddedTaxInvoiceDetails,
+  parseSabcStatementOutstandingInvoiceLines,
   parseStatementTaxInvoiceActivityRows,
   pairStatementLinesWithHyperlinkUrls,
   zaInclusiveTotalToNetVatGrossStrings,
@@ -401,23 +404,74 @@ function hashUrlForSyntheticAttachment(url) {
   return crypto.createHash("sha1").update(url).digest("hex").slice(0, 14);
 }
 
-/** Whether the PDF link URL ties to this invoice number (paths/query often embed INV-xxxx). */
-function rowExistsWithTaxInvoiceDocNo(rows, invUpper) {
-  const u = String(invUpper || "").toUpperCase();
-  return rows.some((r) => {
-    const dn = String(r.documentNo || "").toUpperCase();
-    if (dn !== u) return false;
-    const t = String(r.documentType || "").trim().toLowerCase();
-    return t === "tax invoice" || t === "invoice";
-  });
+/**
+ * Skip synthesizing a Tax Invoice row only when **this PDF's main extract** is already a Tax
+ * Invoice / Invoice with the same doc no. Do not look at other messages/PDFs — otherwise the
+ * second statement pack never gets a row for the same doc no. (dedupe across PDFs is separate).
+ */
+function taxInvoiceMainRowBlocksSynth(mainRow, invUpper) {
+  if (!mainRow) return false;
+  const u = String(invUpper || "").trim().toUpperCase();
+  const dn = String(mainRow.documentNo || "").trim().toUpperCase();
+  if (dn !== u) return false;
+  const t = String(mainRow.documentType || "").trim().toLowerCase();
+  return t === "tax invoice" || t === "invoice";
 }
 
 /**
  * Synthetic Tax Invoice rows from statement activity table + embedded PDF hyperlinks (no HTTP fetch).
  */
 function appendSyntheticTaxInvoicesFromStatement(rows, ctx) {
-  const { text, extracted, pdfHyperlinkUrls, msg, att, folderId } = ctx;
+  const { text, extracted, pdfHyperlinkUrls, msg, att, folderId, mainRow } = ctx;
   if (!text || extracted.documentType !== "Statement") return;
+
+  const flatProbe = text.replace(/\s+/g, " ");
+  if (isSabcAccountStatement(flatProbe)) {
+    const sabcLines = parseSabcStatementOutstandingInvoiceLines(text);
+    if (sabcLines.length) {
+      const embeddedTi = parseSabcEmbeddedTaxInvoiceDetails(text);
+      for (const line of sabcLines) {
+        const invUpper = String(line.invoiceNo || "").trim();
+        if (!invUpper) continue;
+        if (taxInvoiceMainRowBlocksSynth(mainRow, invUpper)) continue;
+
+        const amounts = zaInclusiveTotalToNetVatGrossStrings(line.balance);
+        const synId = `${att.id}:stmt-synth:${invUpper}`;
+        const emb = embeddedTi.get(invUpper);
+
+        rows.push({
+          dateDocumentIssued:
+            (emb && emb.dateDocumentIssued) || extracted.dateDocumentIssued || "",
+          documentType: "Tax Invoice",
+          documentNo: invUpper,
+          grossAmount: amounts.grossAmount,
+          netAmount: amounts.netAmount,
+          vatAmount: amounts.vatAmount,
+          totalAmount: amounts.totalAmount,
+          supplierName: extracted.supplierName || "SABC",
+          clientName: (emb && emb.clientName) || extracted.clientName || "",
+          brandName: (emb && emb.brandName) || "",
+          campaignName: (emb && emb.campaignName) || "",
+          campCampaignNo:
+            (emb && emb.campCampaignNo) || extracted.campCampaignNo || "",
+          bookingOrderNo: (emb && emb.bookingOrderNo) || extracted.bookingOrderNo || "",
+          contractNumber: extracted.contractNumber || "",
+          purchaseOrderNumber: "",
+          statementInvoiceRefs: [],
+          messageId: msg.id,
+          attachmentId: synId,
+          hyperlink: hyperlinkForAttachment(msg.id, att.id, folderId),
+          sourceFileName: `${invUpper}-from-statement.pdf`,
+          emailSubject: msg.subject || "",
+          emailReceivedDateTime: msg.receivedDateTime || "",
+          folderId,
+          parseFromStatementSynthesis: true,
+          statementHyperlinkSourceUrl: "",
+        });
+      }
+      return;
+    }
+  }
 
   const activity = parseStatementTaxInvoiceActivityRows(text);
   if (!activity.length) return;
@@ -426,7 +480,7 @@ function appendSyntheticTaxInvoicesFromStatement(rows, ctx) {
 
   for (const line of paired) {
     const invUpper = line.invoiceNo.toUpperCase();
-    if (rowExistsWithTaxInvoiceDocNo(rows, invUpper)) continue;
+    if (taxInvoiceMainRowBlocksSynth(mainRow, invUpper)) continue;
 
     const amounts = zaInclusiveTotalToNetVatGrossStrings(line.inclusiveTotal);
     const synId = `${att.id}:stmt-synth:${invUpper}`;
@@ -595,32 +649,113 @@ function hyperlinkForAttachment(messageId, attachmentId, folderId) {
 }
 
 /**
- * Drop duplicate logical documents (same Doc no., Date issued, Doc type).
- * Keeps the newest row by email received time. Rows with empty Doc no. are never deduped.
+ * Prefer duplicates with more cells filled from Client through PO (dashboard columns).
+ * Each non-empty field adds a large base score plus a small length tie-breaker.
+ */
+function documentRowDetailRichness(r) {
+  const fields = [
+    "clientName",
+    "brandName",
+    "campaignName",
+    "campCampaignNo",
+    "bookingOrderNo",
+    "contractNumber",
+    "purchaseOrderNumber",
+  ];
+  let score = 0;
+  for (const f of fields) {
+    const t = String(r[f] || "").trim();
+    if (t) score += 10000 + Math.min(8000, t.length);
+  }
+  return score;
+}
+
+function compareRowsForDuplicateKeep(a, b) {
+  const ra = documentRowDetailRichness(a);
+  const rb = documentRowDetailRichness(b);
+  if (rb !== ra) return rb - ra;
+  return String(b.emailReceivedDateTime || "").localeCompare(
+    String(a.emailReceivedDateTime || ""),
+  );
+}
+
+let warnedDocumentDedupDisabled = false;
+
+/**
+ * Identity key for merging: same Doc no. + type. For Tax Invoice / Invoice, **date is ignored** so
+ * two PDFs (statement pack vs invoice pack) that set different "Date issued" still collapse to one row.
+ */
+function documentIdentityDedupKey(r, norm) {
+  const doc = norm(r.documentNo);
+  const dt = norm(r.documentType);
+  if (dt === "tax invoice" || dt === "invoice") {
+    return `${doc}\t${dt}`;
+  }
+  return `${doc}\t${norm(r.dateDocumentIssued)}\t${dt}`;
+}
+
+/**
+ * Drop duplicate logical documents (same Doc no. + Doc type; date included except for Tax Invoice/Invoice).
+ * Keeps the row with the richest Client → PO columns; ties → newest email.
+ * Order confirmations: keep every row. Empty Doc no.: never deduped.
+ *
+ * Set env `DISABLE_DOCUMENT_DETAILS_DEDUP=1` to skip merging (shows every row for debugging).
  */
 function deduplicateRowsByDocumentIdentity(rows) {
+  const skipDedup =
+    process.env.DISABLE_DOCUMENT_DETAILS_DEDUP === "1" ||
+    process.env.DISABLE_DOCUMENT_DETAILS_DEDUP === "true";
+  if (skipDedup) {
+    if (!warnedDocumentDedupDisabled) {
+      warnedDocumentDedupDisabled = true;
+      console.warn(
+        "[document-details] DISABLE_DOCUMENT_DETAILS_DEDUP is set — duplicate doc rows are not merged.",
+      );
+    }
+    return [...(rows || [])];
+  }
+
   const norm = (s) => String(s || "").trim().toLowerCase();
-  const sorted = [...(rows || [])].sort((a, b) =>
-    String(b.emailReceivedDateTime || "").localeCompare(String(a.emailReceivedDateTime || "")),
-  );
-  const seen = new Set();
+  const list = [...(rows || [])];
+  const groups = new Map();
+
+  for (const r of list) {
+    if (norm(r.documentType) === "order confirmation") continue;
+    const doc = norm(r.documentNo);
+    if (!doc || doc === "n/a") continue;
+    const k = documentIdentityDedupKey(r, norm);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+
+  const winnerByKey = new Map();
+  for (const [k, group] of groups) {
+    if (group.length === 1) winnerByKey.set(k, group[0]);
+    else {
+      const sorted = [...group].sort(compareRowsForDuplicateKeep);
+      winnerByKey.set(k, sorted[0]);
+    }
+  }
+
+  const emitted = new Set();
   const out = [];
-  for (const r of sorted) {
-    /** Same Doc no. / date / type — except order confirmations: keep every row (bulk packs, reprints). */
+  for (const r of list) {
     if (norm(r.documentType) === "order confirmation") {
       out.push(r);
       continue;
     }
     const doc = norm(r.documentNo);
-    /** Doc no blank or literal N/A — do not merge rows on that key */
     if (!doc || doc === "n/a") {
       out.push(r);
       continue;
     }
-    const k = `${doc}\t${norm(r.dateDocumentIssued)}\t${norm(r.documentType)}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(r);
+    const k = documentIdentityDedupKey(r, norm);
+    if (emitted.has(k)) continue;
+    const w = winnerByKey.get(k);
+    if (w === r) {
+      out.push(r);
+      emitted.add(k);
+    }
   }
   return out;
 }
@@ -1104,6 +1239,7 @@ async function computeDocumentDetailRows(token, folderId, limit, onProgress, opt
         msg,
         att,
         folderId: scanFid,
+        mainRow,
       },
     };
   });
